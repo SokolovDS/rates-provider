@@ -1,0 +1,7 @@
+# Development dependencies
+-r prod.txt
+
+mypy==1.19.1
+pre-commit==4.5.1
+pytest==9.0.2
+ruff==0.15.5

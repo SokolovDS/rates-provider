@@ -9,5 +9,5 @@
             ]
         }
     },
-    "postCreateCommand": "python -m pip install --upgrade pip ruff mypy"
+    "postCreateCommand": "pip install -r requirements/dev.txt"
 }
