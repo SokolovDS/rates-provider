@@ -18,6 +18,9 @@ htmlcov/
 .venv/
 venv/
 
+# Packaging artifacts
+*.egg-info/
+
 # Editor and OS files
 .vscode/
 .DS_Store
