@@ -1,0 +1,2 @@
+[console_scripts]
+rates-provider = rates_provider.main:main

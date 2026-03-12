@@ -8,6 +8,7 @@
 ## Architecture Rules
 
 - Organize the code by domain areas with clear boundaries between them.
+- Keep application source code under the `src/` directory; avoid placing Python source modules at repository root.
 - Do not mix domain logic with provider integrations, transport, storage, or messaging code.
 - Prefer event-driven coordination between application components when it reduces direct coupling.
 - Keep domain events explicit and named in business terms, not infrastructure terms.

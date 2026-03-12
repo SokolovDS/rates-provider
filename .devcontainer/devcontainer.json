@@ -9,5 +9,5 @@
             ]
         }
     },
-    "postCreateCommand": "pip install -r requirements/dev.txt"
+    "postCreateCommand": "pip install -r requirements/dev.txt -e ."
 }

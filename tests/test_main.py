@@ -1,6 +1,6 @@
 import pytest
 
-from main import main
+from rates_provider.main import main
 
 
 def test_main_prints_hello_world(capsys: pytest.CaptureFixture[str]) -> None:

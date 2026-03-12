@@ -1,3 +1,24 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rates-provider"
+version = "0.1.0"
+description = "Exchange rates provider aggregator."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+rates-provider = "rates_provider.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"
@@ -11,6 +32,9 @@ strict = true
 pretty = true
 show_error_codes = true
 warn_unused_configs = true
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 [[tool.mypy.overrides]]
 module = ["pytest"]

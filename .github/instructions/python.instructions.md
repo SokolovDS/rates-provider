@@ -18,6 +18,7 @@ applyTo: "**/*.py"
 
 - Prioritize readability, clarity, and maintainability over cleverness.
 - Keep code idiomatic and consistent with established Python best practices.
+- Keep application source files under the `src/` directory; do not place Python source modules at repository root.
 - When implementing algorithms or normalization logic, make the approach easy to follow.
 - Keep external library usage explicit and limited to places where it simplifies the design.
 - Prefer enforceable checks in linters and type checkers over manual style-only guidance.
