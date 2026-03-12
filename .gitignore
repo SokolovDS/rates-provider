@@ -22,5 +22,9 @@ venv/
 *.egg-info/
 
 # Editor and OS files
-.vscode/
 .DS_Store
+
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example

@@ -1,0 +1,15 @@
+# Secrets and local environment files
+.env
+.env.*
+
+# Git metadata
+.git
+.gitignore
+
+# Python caches and artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
