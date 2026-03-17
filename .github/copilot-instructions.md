@@ -9,10 +9,13 @@
 
 - Organize the code by domain areas with clear boundaries between them.
 - Keep application source code under the `src/` directory; avoid placing Python source modules at repository root.
+- Use a Clean Architecture + DDD package layout with explicit layers:
+- `domain/` for entities, value objects, domain services, domain events, and repository interfaces.
+- `application/` for use cases, application services, commands/queries, and DTOs.
+- `infrastructure/` for framework-dependent and I/O code (Telegram delivery, provider HTTP clients, persistence, messaging).
 - Do not mix domain logic with provider integrations, transport, storage, or messaging code.
 - Prefer event-driven coordination between application components when it reduces direct coupling.
 - Keep domain events explicit and named in business terms, not infrastructure terms.
-- Isolate external providers behind adapter-style modules.
 - Keep application orchestration separate from domain rules.
 
 ## Python Conventions
@@ -33,4 +36,4 @@
 - Follow TDD when implementing behavior: write or update the failing test first, then implement the code to satisfy it.
 - Follow the testing pyramid: prefer many fast unit tests, fewer integration tests, and only a small number of end-to-end tests.
 - Keep unit tests focused on domain rules, normalization, and application behavior without real external calls.
-- Use integration tests for boundaries between modules and adapters, but keep provider and network dependencies mocked or isolated.
+- Use integration tests for boundaries between application and infrastructure, but keep provider and network dependencies mocked or isolated.

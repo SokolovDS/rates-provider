@@ -5,33 +5,19 @@
             "name": "Python: Telegram Bot",
             "type": "debugpy",
             "request": "launch",
-            "python": "/usr/bin/python3",
             "module": "rates_provider",
-            "cwd": "${workspaceFolder}",
-            "envFile": "${workspaceFolder}/.env",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/src"
-            },
-            "console": "integratedTerminal",
-            "justMyCode": true
+            "envFile": "${workspaceFolder}/.env"
         },
         {
             "name": "Python: Tests (pytest)",
             "type": "debugpy",
             "request": "launch",
-            "python": "/usr/bin/python3",
             "module": "pytest",
-            "cwd": "${workspaceFolder}",
             "args": [
                 "tests",
                 "-q"
             ],
-            "envFile": "${workspaceFolder}/.env",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/src"
-            },
-            "console": "integratedTerminal",
-            "justMyCode": true
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 }

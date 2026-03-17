@@ -2,8 +2,8 @@
 
 import asyncio
 
-from .adapters.telegram import run_echo_bot
 from .config import load_bot_token
+from .infrastructure.telegram import run_echo_bot
 
 
 def main() -> None:

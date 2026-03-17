@@ -1,20 +1,18 @@
-"""Telegram adapter implementation."""
+"""Telegram delivery mechanism implementation."""
 
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message
 
 
+async def echo_message(message: Message) -> None:
+    """Copy any incoming message back to the same chat, preserving its content type."""
+    await message.copy_to(message.chat.id)
+
+
 def build_dispatcher() -> Dispatcher:
     """Build dispatcher with all message handlers registered."""
     dispatcher = Dispatcher()
-
-    @dispatcher.message()
-    async def echo_message(message: Message) -> None:
-        """Reply with the exact same text for text messages."""
-        if message.text is None:
-            return
-        await message.answer(message.text)
-
+    dispatcher.message()(echo_message)
     return dispatcher
 
 
