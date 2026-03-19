@@ -37,3 +37,9 @@
 - Follow the testing pyramid: prefer many fast unit tests, fewer integration tests, and only a small number of end-to-end tests.
 - Keep unit tests focused on domain rules, normalization, and application behavior without real external calls.
 - Use integration tests for boundaries between application and infrastructure, but keep provider and network dependencies mocked or isolated.
+
+## Telegram UI Policy
+
+- Treat Telegram UX behavior as an explicit contract, not an implementation detail.
+- When editing Telegram infrastructure code, follow the scoped rules in `.github/instructions/telegram-ui.instructions.md`.
+- If Telegram UX behavior changes, update both tests and README in the same change.

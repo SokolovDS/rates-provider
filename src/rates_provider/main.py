@@ -2,11 +2,11 @@
 
 import asyncio
 
-from .config import load_bot_token
-from .infrastructure.telegram import run_echo_bot
+from rates_provider.config import load_bot_token
+from rates_provider.infrastructure.telegram_bot import run_bot
 
 
 def main() -> None:
-    """Run the Telegram echo bot."""
+    """Run Telegram bot with configured application services."""
     token = load_bot_token()
-    asyncio.run(run_echo_bot(token))
+    asyncio.run(run_bot(token))
