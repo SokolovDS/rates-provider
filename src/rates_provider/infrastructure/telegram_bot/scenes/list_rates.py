@@ -10,6 +10,7 @@ from rates_provider.application.list_exchange_rates import (
     ListExchangeRatesResult,
     ListExchangeRatesUseCase,
 )
+from users_service.domain.user import User as InternalUser
 
 from .base import BaseTelegramScene
 
@@ -46,9 +47,10 @@ class ListRatesScene(BaseTelegramScene, state="rates_list"):
     async def _list_payload(
         self,
         list_exchange_rates_use_case: ListExchangeRatesUseCase,
+        current_user: InternalUser,
     ) -> tuple[str, InlineKeyboardMarkup | None]:
         """Build text and markup for the stored exchange-rate list."""
-        result = await list_exchange_rates_use_case.execute()
+        result = await list_exchange_rates_use_case.execute(current_user.user_id.value)
         text = "\n".join(_build_list_rates_lines(result))
         return text, await self.reply_markup()
 
@@ -57,9 +59,13 @@ class ListRatesScene(BaseTelegramScene, state="rates_list"):
         self,
         message: Message,
         list_exchange_rates_use_case: ListExchangeRatesUseCase,
+        current_user: InternalUser,
     ) -> None:
         """Send list message when entered from a command/message."""
-        text, reply_markup = await self._list_payload(list_exchange_rates_use_case)
+        text, reply_markup = await self._list_payload(
+            list_exchange_rates_use_case,
+            current_user,
+        )
         ui_message = await message.answer(text, reply_markup=reply_markup)
         await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: ui_message.message_id})
 
@@ -68,12 +74,16 @@ class ListRatesScene(BaseTelegramScene, state="rates_list"):
         self,
         callback_query: CallbackQuery,
         list_exchange_rates_use_case: ListExchangeRatesUseCase,
+        current_user: InternalUser,
     ) -> None:
         """Edit existing UI shell when list scene is opened from callback."""
         await callback_query.answer()
         message = callback_query.message
         if not isinstance(message, Message):
             return
-        text, reply_markup = await self._list_payload(list_exchange_rates_use_case)
+        text, reply_markup = await self._list_payload(
+            list_exchange_rates_use_case,
+            current_user,
+        )
         await message.edit_text(text, reply_markup=reply_markup)
         await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: message.message_id})

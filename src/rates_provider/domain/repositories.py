@@ -10,9 +10,9 @@ class ExchangeRateRepository(ABC):
     """Port describing append-only storage for exchange-rate history."""
 
     @abstractmethod
-    async def add(self, exchange_rate: ExchangeRate) -> None:
+    async def add(self, user_id: str, exchange_rate: ExchangeRate) -> None:
         """Store a single exchange-rate record."""
 
     @abstractmethod
-    async def list_all(self) -> Sequence[ExchangeRate]:
-        """Return all stored exchange-rate records in insertion order."""
+    async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:
+        """Return stored exchange-rate records for a specific user."""

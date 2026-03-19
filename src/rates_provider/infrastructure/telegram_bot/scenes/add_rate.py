@@ -21,6 +21,7 @@ from rates_provider.domain.exceptions import (
     NonPositiveRateValueError,
 )
 from rates_provider.domain.exchange_rate import CurrencyCode
+from users_service.domain.user import User as InternalUser
 
 from .base import BaseTelegramScene, handle_exceptions
 
@@ -188,6 +189,7 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
         self,
         message: Message,
         add_exchange_rate_use_case: AddExchangeRateUseCase,
+        current_user: InternalUser,
     ) -> None:
         """Accept and validate rate value, then return to main menu scene."""
         await _best_effort_delete_user_message(message)
@@ -201,6 +203,7 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
 
         result = await add_exchange_rate_use_case.execute(
             AddExchangeRateCommand(
+                user_id=current_user.user_id.value,
                 source_currency=source_currency,
                 target_currency=target_currency,
                 rate_value=rate_value,

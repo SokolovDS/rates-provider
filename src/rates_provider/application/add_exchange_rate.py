@@ -12,6 +12,7 @@ from rates_provider.domain.repositories import ExchangeRateRepository
 class AddExchangeRateCommand:
     """Input data required to add an exchange-rate record."""
 
+    user_id: str
     source_currency: str
     target_currency: str
     rate_value: Decimal
@@ -37,14 +38,24 @@ class AddExchangeRateUseCase:
 
     async def execute(self, command: AddExchangeRateCommand) -> AddExchangeRateResult:
         """Validate, persist, and return a newly added exchange-rate record."""
+        user_id = self._normalize_user_id(command.user_id)
         exchange_rate = self._build_exchange_rate(command)
-        await self._repository.add(exchange_rate)
+        await self._repository.add(user_id, exchange_rate)
         return AddExchangeRateResult(
             source_currency=exchange_rate.source_currency.value,
             target_currency=exchange_rate.target_currency.value,
             rate_value=exchange_rate.rate_value,
             created_at=exchange_rate.created_at,
         )
+
+    @staticmethod
+    def _normalize_user_id(user_id: str) -> str:
+        """Return normalized user id or raise when it is blank."""
+        normalized_user_id = user_id.strip()
+        if normalized_user_id == "":
+            message = "User id must not be empty."
+            raise ValueError(message)
+        return normalized_user_id
 
     def _build_exchange_rate(self, command: AddExchangeRateCommand) -> ExchangeRate:
         """Translate the application command into a validated domain entity."""

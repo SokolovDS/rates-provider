@@ -22,19 +22,21 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
         self._database_path.parent.mkdir(parents=True, exist_ok=True)
         self._initialize_schema()
 
-    async def add(self, exchange_rate: ExchangeRate) -> None:
+    async def add(self, user_id: str, exchange_rate: ExchangeRate) -> None:
         """Append a new exchange-rate record to SQLite storage."""
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO exchange_rates (
+                    user_id,
                     source_currency,
                     target_currency,
                     rate_value,
                     created_at
-                ) VALUES (?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?)
                 """,
                 (
+                    user_id,
                     exchange_rate.source_currency.value,
                     exchange_rate.target_currency.value,
                     str(exchange_rate.rate_value),
@@ -43,15 +45,17 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
             )
             connection.commit()
 
-    async def list_all(self) -> Sequence[ExchangeRate]:
-        """Return all stored exchange-rate records in insertion order."""
+    async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:
+        """Return stored exchange-rate records for a specific user."""
         with self._connect() as connection:
             rows = connection.execute(
                 """
-                SELECT source_currency, target_currency, rate_value, created_at
+                SELECT user_id, source_currency, target_currency, rate_value, created_at
                 FROM exchange_rates
+                WHERE user_id = ?
                 ORDER BY id ASC
-                """
+                """,
+                (user_id,),
             ).fetchall()
         return tuple(self._row_to_exchange_rate(row) for row in rows)
 
@@ -62,6 +66,7 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
                 """
                 CREATE TABLE IF NOT EXISTS exchange_rates (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
                     source_currency TEXT NOT NULL,
                     target_currency TEXT NOT NULL,
                     rate_value TEXT NOT NULL,
@@ -69,7 +74,26 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
                 )
                 """
             )
+            self._ensure_user_id_column(connection)
+            connection.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_exchange_rates_user_id
+                ON exchange_rates(user_id)
+                """
+            )
             connection.commit()
+
+    def _ensure_user_id_column(self, connection: sqlite3.Connection) -> None:
+        """Ensure legacy schemas contain user_id required for per-user isolation."""
+        table_columns = connection.execute(
+            "PRAGMA table_info(exchange_rates)"
+        ).fetchall()
+        column_names = {cast(str, row["name"]) for row in table_columns}
+        if "user_id" in column_names:
+            return
+        connection.execute(
+            "ALTER TABLE exchange_rates ADD COLUMN user_id TEXT NOT NULL DEFAULT ''"
+        )
 
     def _connect(self) -> sqlite3.Connection:
         """Open SQLite connection configured for named-column access."""

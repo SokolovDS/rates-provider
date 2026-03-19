@@ -25,7 +25,7 @@ Current Telegram behavior:
 - add-rate flow is step-by-step: source currency -> target currency -> rate;
 - `Назад` in add-rate flow uses scene wizard navigation (`wizard.back`);
 - each next step re-shows already collected context lines;
-- list screen shows all rates as `USD -> EUR = 90.50 (2026.03.19 11:00:00 UTC)`, newest first;
+- list screen shows only current user's rates as `USD -> EUR = 90.50 (2026.03.19 11:00:00 UTC)`, newest first;
 - rates are stored in SQLite, so records survive restarts.
 - on any handled Telegram interaction (message or callback), user account is
 	resolved-or-created in the internal User Service.
@@ -42,7 +42,8 @@ Current behavior:
 - exchange rates are validated in the domain layer;
 - currency codes are normalized to uppercase;
 - repeated additions for the same pair are stored as history;
-- all stored records can be retrieved via a dedicated list use case;
+- rates are isolated by internal user id;
+- user-specific records can be retrieved via a dedicated list use case;
 - storage uses SQLite file persistence.
 
 Example usage from Python:
@@ -66,6 +67,7 @@ use_case = AddExchangeRateUseCase(repository)
 result = asyncio.run(
 	use_case.execute(
 		AddExchangeRateCommand(
+			user_id="user-1",
 			source_currency="USD",
 			target_currency="EUR",
 			rate_value=Decimal("90.50"),
@@ -76,7 +78,7 @@ result = asyncio.run(
 print(result)
 
 list_use_case = ListExchangeRatesUseCase(repository)
-all_rates = asyncio.run(list_use_case.execute())
+all_rates = asyncio.run(list_use_case.execute("user-1"))
 
 print(all_rates.exchange_rates)
 ```

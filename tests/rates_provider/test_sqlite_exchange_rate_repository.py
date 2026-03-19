@@ -28,10 +28,10 @@ def test_sqlite_repository_lists_all_rates_in_insertion_order(
         rate_value=Decimal("100.10"),
     )
 
-    asyncio.run(repository.add(first_rate))
-    asyncio.run(repository.add(second_rate))
+    asyncio.run(repository.add("user-1", first_rate))
+    asyncio.run(repository.add("user-1", second_rate))
 
-    assert list(asyncio.run(repository.list_all())) == [
+    assert list(asyncio.run(repository.list_all("user-1"))) == [
         first_rate,
         second_rate,
     ]
@@ -48,9 +48,34 @@ def test_sqlite_repository_persists_rates_between_instances(tmp_path: Path) -> N
         rate_value=Decimal("90.50"),
     )
 
-    asyncio.run(first_repository.add(exchange_rate))
+    asyncio.run(first_repository.add("user-1", exchange_rate))
 
     second_repository = SQLiteExchangeRateRepository(str(database_path))
-    loaded_rates = asyncio.run(second_repository.list_all())
+    loaded_rates = asyncio.run(second_repository.list_all("user-1"))
 
     assert list(loaded_rates) == [exchange_rate]
+
+
+def test_sqlite_repository_returns_only_rates_for_requested_user(
+    tmp_path: Path,
+) -> None:
+    """SQLite repository should isolate exchange rates by user identifier."""
+    database_path = tmp_path / "rates.sqlite3"
+    repository = SQLiteExchangeRateRepository(str(database_path))
+
+    user_one_rate = ExchangeRate(
+        source_currency=CurrencyCode("USD"),
+        target_currency=CurrencyCode("EUR"),
+        rate_value=Decimal("90.50"),
+    )
+    user_two_rate = ExchangeRate(
+        source_currency=CurrencyCode("EUR"),
+        target_currency=CurrencyCode("RUB"),
+        rate_value=Decimal("100.10"),
+    )
+
+    asyncio.run(repository.add("user-1", user_one_rate))
+    asyncio.run(repository.add("user-2", user_two_rate))
+
+    assert list(asyncio.run(repository.list_all("user-1"))) == [user_one_rate]
+    assert list(asyncio.run(repository.list_all("user-2"))) == [user_two_rate]
