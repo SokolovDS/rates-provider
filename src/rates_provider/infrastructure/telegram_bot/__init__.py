@@ -12,9 +12,7 @@ from aiogram.fsm.scene import SceneRegistry
 
 from rates_provider.application.add_exchange_rate import AddExchangeRateUseCase
 from rates_provider.application.list_exchange_rates import ListExchangeRatesUseCase
-from rates_provider.infrastructure.memory_exchange_rate_repository import (
-    InMemoryExchangeRateRepository,
-)
+from rates_provider.infrastructure.repository_factory import build_exchange_rate_repository
 
 from .scenes.add_rate import AddRateSourceScene, AddRateTargetScene, AddRateValueScene
 from .scenes.list_rates import ListRatesScene
@@ -35,7 +33,7 @@ async def run_bot(token: str) -> None:
     """Run Telegram bot with configured application services."""
     logging.basicConfig(level=logging.INFO)
 
-    repository = InMemoryExchangeRateRepository()
+    repository = build_exchange_rate_repository()
     add_exchange_rate_use_case = AddExchangeRateUseCase(repository)
     list_exchange_rates_use_case = ListExchangeRatesUseCase(repository)
 

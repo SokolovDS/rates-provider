@@ -19,7 +19,7 @@ Current Telegram behavior:
 - `Назад` in add-rate flow uses scene wizard navigation (`wizard.back`);
 - each next step re-shows already collected context lines;
 - list screen shows all rates as `USD -> EUR = 90.50 (2026.03.19 11:00:00 UTC)`, newest first;
-- storage remains in-memory, so records are lost after restart.
+- rates are stored in SQLite, so records survive restarts.
 
 ## Exchange Rate Use Cases
 
@@ -34,7 +34,7 @@ Current behavior:
 - currency codes are normalized to uppercase;
 - repeated additions for the same pair are stored as history;
 - all stored records can be retrieved via a dedicated list use case;
-- storage is in-memory only, so records are lost on process restart.
+- storage uses SQLite file persistence.
 
 Example usage from Python:
 
@@ -47,11 +47,11 @@ from rates_provider.application.add_exchange_rate import (
 	AddExchangeRateUseCase,
 )
 from rates_provider.application.list_exchange_rates import ListExchangeRatesUseCase
-from rates_provider.infrastructure.memory_exchange_rate_repository import (
-	InMemoryExchangeRateRepository,
+from rates_provider.infrastructure.sqlite_exchange_rate_repository import (
+	SQLiteExchangeRateRepository,
 )
 
-repository = InMemoryExchangeRateRepository()
+repository = SQLiteExchangeRateRepository("data/exchange_rates.sqlite3")
 use_case = AddExchangeRateUseCase(repository)
 
 result = asyncio.run(
@@ -81,7 +81,14 @@ Set your bot token in `.env`:
 cp .env.example .env
 # then edit .env
 # TELEGRAM_BOT_TOKEN=your_token_here
+# STORAGE_BACKEND=sqlite
+# SQLITE_DB_PATH=data/exchange_rates.sqlite3
 ```
+
+Storage backend options:
+
+- `STORAGE_BACKEND=sqlite` (default) uses persistent SQLite file storage;
+- `STORAGE_BACKEND=memory` uses volatile in-memory storage.
 
 ## Run
 
