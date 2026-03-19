@@ -2,6 +2,13 @@
 
 Python project with source code in `src/` and tests in `tests/`.
 
+## Package Layout
+
+- `src/rates_provider/` contains exchange-rate domain and Telegram bot flow.
+- `src/users_service/` contains user lifecycle and external identity mapping.
+- `tests/rates_provider/` contains rates-provider behavior tests.
+- `tests/users_service/` contains users-service behavior tests.
+
 ## Telegram Bot UX
 
 The bot provides a single-message UI shell with declarative callback actions.
@@ -20,6 +27,8 @@ Current Telegram behavior:
 - each next step re-shows already collected context lines;
 - list screen shows all rates as `USD -> EUR = 90.50 (2026.03.19 11:00:00 UTC)`, newest first;
 - rates are stored in SQLite, so records survive restarts.
+- on any handled Telegram interaction (message or callback), user account is
+	resolved-or-created in the internal User Service.
 
 ## Exchange Rate Use Cases
 
@@ -82,13 +91,19 @@ cp .env.example .env
 # then edit .env
 # TELEGRAM_BOT_TOKEN=your_token_here
 # STORAGE_BACKEND=sqlite
-# SQLITE_DB_PATH=data/exchange_rates.sqlite3
+# SQLITE_RATES_DB_PATH=data/exchange_rates.sqlite3
+# SQLITE_USERS_DB_PATH=data/users_service.sqlite3
 ```
 
 Storage backend options:
 
 - `STORAGE_BACKEND=sqlite` (default) uses persistent SQLite file storage;
 - `STORAGE_BACKEND=memory` uses volatile in-memory storage.
+
+For sqlite backend, services use separate databases:
+
+- Rates Provider DB: `SQLITE_RATES_DB_PATH`;
+- Users Service DB: `SQLITE_USERS_DB_PATH`.
 
 ## Run
 

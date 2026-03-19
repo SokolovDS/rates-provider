@@ -34,6 +34,22 @@ def load_sqlite_db_path(
     return database_path
 
 
+def load_rates_sqlite_db_path(
+    env_var_name: str = "SQLITE_RATES_DB_PATH",
+    default_path: str = "data/exchange_rates.sqlite3",
+) -> str:
+    """Load SQLite database path for Rates Provider persistence."""
+    return load_sqlite_db_path(env_var_name=env_var_name, default_path=default_path)
+
+
+def load_users_sqlite_db_path(
+    env_var_name: str = "SQLITE_USERS_DB_PATH",
+    default_path: str = "data/users_service.sqlite3",
+) -> str:
+    """Load SQLite database path for Users Service persistence."""
+    return load_sqlite_db_path(env_var_name=env_var_name, default_path=default_path)
+
+
 def load_storage_backend(
     env_var_name: str = "STORAGE_BACKEND",
     default_backend: str = "sqlite",

@@ -1,6 +1,10 @@
 """Factory helpers for infrastructure repository wiring."""
 
-from rates_provider.config import load_sqlite_db_path, load_storage_backend
+from rates_provider.config import (
+    load_rates_sqlite_db_path,
+    load_storage_backend,
+    load_users_sqlite_db_path,
+)
 from rates_provider.domain.repositories import ExchangeRateRepository
 from rates_provider.infrastructure.memory_exchange_rate_repository import (
     InMemoryExchangeRateRepository,
@@ -8,6 +12,9 @@ from rates_provider.infrastructure.memory_exchange_rate_repository import (
 from rates_provider.infrastructure.sqlite_exchange_rate_repository import (
     SQLiteExchangeRateRepository,
 )
+from users_service.domain.repositories import UserRepository
+from users_service.infrastructure.memory_user_repository import InMemoryUserRepository
+from users_service.infrastructure.sqlite_user_repository import SQLiteUserRepository
 
 
 def build_exchange_rate_repository() -> ExchangeRateRepository:
@@ -16,5 +23,15 @@ def build_exchange_rate_repository() -> ExchangeRateRepository:
     if backend_name == "memory":
         return InMemoryExchangeRateRepository()
 
-    sqlite_db_path = load_sqlite_db_path()
+    sqlite_db_path = load_rates_sqlite_db_path()
     return SQLiteExchangeRateRepository(sqlite_db_path)
+
+
+def build_user_repository() -> UserRepository:
+    """Build user repository according to runtime configuration."""
+    backend_name = load_storage_backend()
+    if backend_name == "memory":
+        return InMemoryUserRepository()
+
+    sqlite_db_path = load_users_sqlite_db_path()
+    return SQLiteUserRepository(sqlite_db_path)
