@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
+from rates_provider.application._validation import normalize_user_id
 from rates_provider.domain.repositories import ExchangeRateRepository
 
 
@@ -33,7 +34,7 @@ class ListExchangeRatesUseCase:
 
     async def execute(self, user_id: str) -> ListExchangeRatesResult:
         """Load stored exchange-rate records for a user and map them to DTOs."""
-        normalized_user_id = self._normalize_user_id(user_id)
+        normalized_user_id = normalize_user_id(user_id)
         exchange_rates = await self._repository.list_all(normalized_user_id)
         return ListExchangeRatesResult(
             exchange_rates=tuple(
@@ -46,12 +47,3 @@ class ListExchangeRatesUseCase:
                 for exchange_rate in exchange_rates
             )
         )
-
-    @staticmethod
-    def _normalize_user_id(user_id: str) -> str:
-        """Return normalized user id or raise when it is blank."""
-        normalized_user_id = user_id.strip()
-        if normalized_user_id == "":
-            message = "User id must not be empty."
-            raise ValueError(message)
-        return normalized_user_id

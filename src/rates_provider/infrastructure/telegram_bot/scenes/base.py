@@ -5,10 +5,23 @@ from functools import wraps
 from typing import Any, ClassVar
 
 from aiogram import F
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.fsm.scene import Scene, on
 from aiogram.fsm.state import State
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+
+def _prepare_scene_data_for_enter(
+    data: dict[str, Any],
+    *,
+    ui_message_id_key: str,
+    fresh_ui_message: bool,
+) -> dict[str, Any]:
+    """Prepare scene data before enter, optionally forcing a fresh UI message."""
+    prepared_data = dict(data)
+    if fresh_ui_message:
+        prepared_data.pop(ui_message_id_key, None)
+    return prepared_data
 
 
 def handle_exceptions(
@@ -147,9 +160,35 @@ class BaseTelegramScene(Scene):
             return
         await self.wizard.back()
 
+    @on.message.enter()
+    async def on_enter_from_message(self, message: Message) -> None:
+        """Render scene when entered from a message event."""
+        text, reply_markup = await self._payload()
+        await self._render_for_message(message, text, reply_markup)
+
+    @on.callback_query.enter()
+    async def on_enter_from_callback(self, callback_query: CallbackQuery) -> None:
+        """Render scene by editing the current UI message when entered from a callback."""
+        await callback_query.answer()
+        message = callback_query.message
+        if not isinstance(message, Message):
+            return
+        text, reply_markup = await self._payload()
+        await message.edit_text(text, reply_markup=reply_markup)
+        await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: message.message_id})
+
+    @staticmethod
+    async def _best_effort_delete_user_message(message: Message) -> None:
+        """Delete user message silently; keep flow alive on Telegram API failure."""
+        try:
+            await message.delete()
+        except TelegramAPIError:
+            return
+
     async def collapse_to(
         self,
         scene_type: type[Scene] | State | str | None,
+        fresh_ui_message: bool = False,
         **kwargs: Any,
     ) -> None:
         """
@@ -209,7 +248,12 @@ class BaseTelegramScene(Scene):
             await manager.history.push(rec.state, rec.data)
 
         # Восстанавливаем data той сцены, к которой схлопываемся
-        await self.wizard.state.set_data(target_record.data)
+        target_data = _prepare_scene_data_for_enter(
+            target_record.data,
+            ui_message_id_key=self._UI_MESSAGE_ID_KEY,
+            fresh_ui_message=fresh_ui_message,
+        )
+        await self.wizard.state.set_data(target_data)
 
         # Делаем target текущей активной сценой
         await manager.enter(scene_type, _check_active=False, **kwargs)

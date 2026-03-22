@@ -3,13 +3,13 @@
 from decimal import Decimal, InvalidOperation
 from typing import ClassVar
 
-from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.scene import on
 from aiogram.types import (
-    CallbackQuery,
     Message,
 )
 
+from rates_provider.application._validation import normalize_currency_code
 from rates_provider.application.add_exchange_rate import (
     AddExchangeRateCommand,
     AddExchangeRateUseCase,
@@ -20,12 +20,10 @@ from rates_provider.domain.exceptions import (
     InvalidCurrencyCodeError,
     NonPositiveRateValueError,
 )
-from rates_provider.domain.exchange_rate import CurrencyCode
 from users_service.domain.user import User as InternalUser
 
 from .base import BaseTelegramScene, handle_exceptions
 
-UI_MESSAGE_ID_KEY: str = "ui_message_id"
 SOURCE_CURRENCY_KEY: str = "source_currency"
 TARGET_CURRENCY_KEY: str = "target_currency"
 
@@ -51,14 +49,6 @@ def _domain_error_message(error: Exception) -> str:
     return "Ошибка: не удалось сохранить курс. Проверьте введенные данные."
 
 
-async def _best_effort_delete_user_message(message: Message) -> None:
-    """Delete user message if possible, but keep flow alive on failure."""
-    try:
-        await message.delete()
-    except TelegramAPIError:
-        return
-
-
 class AddRateSourceScene(BaseTelegramScene, state="add_rate:source"):
     """Step 1 scene that asks the source currency."""
 
@@ -68,30 +58,11 @@ class AddRateSourceScene(BaseTelegramScene, state="add_rate:source"):
         """Create source-currency prompt base text lines."""
         return ["Добавление курса", "", self._PROMPT_TEXT]
 
-    @on.message.enter()
-    async def on_enter_from_message(self, message: Message) -> None:
-        """Render source-currency prompt when entered from a message event."""
-        text, reply_markup = await self._payload()
-        await self._render_for_message(message, text, reply_markup)
-
-    @on.callback_query.enter()
-    async def on_enter_from_callback(self, callback_query: CallbackQuery) -> None:
-        """Render source-currency prompt by editing current UI message."""
-        await callback_query.answer()
-        message = callback_query.message
-        if not isinstance(message, Message):
-            return
-        text, reply_markup = await self._payload()
-        await message.edit_text(text, reply_markup=reply_markup)
-        await self.wizard.update_data({UI_MESSAGE_ID_KEY: message.message_id})
-
     @on.message()
-    @handle_exceptions(_domain_error_message, DomainValidationError)
     async def on_source_currency(self, message: Message) -> None:
-        """Accept and validate source currency, then move to target step."""
-        await _best_effort_delete_user_message(message)
-        source_currency = CurrencyCode(message.text or "").value
-
+        """Validate source currency and move to target step."""
+        await self._best_effort_delete_user_message(message)
+        source_currency = normalize_currency_code(message.text or "")
         await self.wizard.update_data({SOURCE_CURRENCY_KEY: source_currency})
         await self.wizard.goto(AddRateTargetScene)
 
@@ -112,37 +83,18 @@ class AddRateTargetScene(BaseTelegramScene, state="add_rate:target"):
             self._PROMPT_TEXT,
         ]
 
-    @on.message.enter()
-    async def on_enter_from_message(self, message: Message) -> None:
-        """Render target-currency prompt when entered from a message event."""
-        text, reply_markup = await self._payload()
-        await self._render_for_message(message, text, reply_markup)
-
-    @on.callback_query.enter()
-    async def on_enter_from_callback(self, callback_query: CallbackQuery) -> None:
-        """Render target-currency prompt by editing current UI message."""
-        await callback_query.answer()
-        message = callback_query.message
-        if not isinstance(message, Message):
-            return
-        text, reply_markup = await self._payload()
-        await message.edit_text(text, reply_markup=reply_markup)
-        await self.wizard.update_data({UI_MESSAGE_ID_KEY: message.message_id})
-
     @on.message()
     @handle_exceptions(_domain_error_message, DomainValidationError)
     async def on_target_currency(self, message: Message) -> None:
-        """Accept and validate target currency, then move to rate step."""
-        await _best_effort_delete_user_message(message)
-        text_input = message.text or ""
-        target_currency = CurrencyCode(text_input).value
+        """Validate target currency and move to rate step."""
+        await self._best_effort_delete_user_message(message)
+        target_currency = normalize_currency_code(message.text or "")
 
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
         if target_currency == source_currency:
             raise IdenticalCurrencyPairError(
-                "Exchange-rate currencies must differ."
-            )
+                "Exchange-rate currencies must differ.")
 
         await self.wizard.update_data({TARGET_CURRENCY_KEY: target_currency})
         await self.wizard.goto(AddRateValueScene)
@@ -166,23 +118,6 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
             self._PROMPT_TEXT,
         ]
 
-    @on.message.enter()
-    async def on_enter_from_message(self, message: Message) -> None:
-        """Render rate prompt when entered from a message event."""
-        text, reply_markup = await self._payload()
-        await self._render_for_message(message, text, reply_markup)
-
-    @on.callback_query.enter()
-    async def on_enter_from_callback(self, callback_query: CallbackQuery) -> None:
-        """Render rate prompt by editing current UI message."""
-        await callback_query.answer()
-        message = callback_query.message
-        if not isinstance(message, Message):
-            return
-        text, reply_markup = await self._payload()
-        await message.edit_text(text, reply_markup=reply_markup)
-        await self.wizard.update_data({UI_MESSAGE_ID_KEY: message.message_id})
-
     @on.message()
     @handle_exceptions(_domain_error_message, InvalidOperation, DomainValidationError)
     async def on_rate_value(
@@ -191,14 +126,14 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
         add_exchange_rate_use_case: AddExchangeRateUseCase,
         current_user: InternalUser,
     ) -> None:
-        """Accept and validate rate value, then return to main menu scene."""
-        await _best_effort_delete_user_message(message)
+        """Accept and validate rate value, then return to rates menu scene."""
+        await self._best_effort_delete_user_message(message)
         rate_value = _parse_rate(message.text or "")
 
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
         target_currency = str(data.get(TARGET_CURRENCY_KEY, "-"))
-        ui_message_id = data.get(UI_MESSAGE_ID_KEY)
+        ui_message_id = data.get(self._UI_MESSAGE_ID_KEY)
         bot = message.bot
 
         result = await add_exchange_rate_use_case.execute(
@@ -228,4 +163,4 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
         else:
             await message.answer(success_text)
 
-        await self.collapse_to("rates_menu")
+        await self.collapse_to("rates_menu", fresh_ui_message=True)

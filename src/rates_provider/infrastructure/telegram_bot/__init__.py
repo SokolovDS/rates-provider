@@ -11,6 +11,11 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.scene import SceneRegistry
 
 from rates_provider.application.add_exchange_rate import AddExchangeRateUseCase
+from rates_provider.application.compute_exchange_paths import (
+    ComputeExchangePathsUseCase,
+    ComputeReceivedAmountUseCase,
+    ComputeRequiredSourceAmountUseCase,
+)
 from rates_provider.application.list_exchange_rates import ListExchangeRatesUseCase
 from rates_provider.infrastructure.repository_factory import (
     build_exchange_rate_repository,
@@ -22,6 +27,19 @@ from users_service.application.resolve_or_create_telegram_user import (
 from users_service.infrastructure.telegram.ensure_user import EnsureTelegramUserMiddleware
 
 from .scenes.add_rate import AddRateSourceScene, AddRateTargetScene, AddRateValueScene
+from .scenes.exchange_paths import (
+    ExchangePathResultScene,
+    ExchangePathSourceScene,
+    ExchangePathTargetScene,
+    ReceivedAmountResultScene,
+    ReceivedAmountSourceScene,
+    ReceivedAmountTargetScene,
+    ReceivedAmountValueScene,
+    RequiredAmountResultScene,
+    RequiredAmountSourceScene,
+    RequiredAmountTargetScene,
+    RequiredAmountValueScene,
+)
 from .scenes.list_rates import ListRatesScene
 from .scenes.main_menu import MainMenuScene
 from .scenes.rates_menu import RatesMenuScene
@@ -44,6 +62,10 @@ async def run_bot(token: str) -> None:
     user_repository = build_user_repository()
     add_exchange_rate_use_case = AddExchangeRateUseCase(repository)
     list_exchange_rates_use_case = ListExchangeRatesUseCase(repository)
+    compute_exchange_paths_use_case = ComputeExchangePathsUseCase(repository)
+    compute_received_amount_use_case = ComputeReceivedAmountUseCase(repository)
+    compute_required_source_amount_use_case = ComputeRequiredSourceAmountUseCase(
+        repository)
     resolve_or_create_user_use_case = ResolveOrCreateTelegramUserUseCase(
         user_repository)
 
@@ -54,6 +76,11 @@ async def run_bot(token: str) -> None:
         EnsureTelegramUserMiddleware(resolve_or_create_user_use_case))
     dp.workflow_data["add_exchange_rate_use_case"] = add_exchange_rate_use_case
     dp.workflow_data["list_exchange_rates_use_case"] = list_exchange_rates_use_case
+    dp.workflow_data["compute_exchange_paths_use_case"] = compute_exchange_paths_use_case
+    dp.workflow_data["compute_received_amount_use_case"] = compute_received_amount_use_case
+    dp.workflow_data["compute_required_source_amount_use_case"] = (
+        compute_required_source_amount_use_case
+    )
     dp.workflow_data["resolve_or_create_user_use_case"] = resolve_or_create_user_use_case
     dp.include_router(build_router())
 
@@ -62,6 +89,17 @@ async def run_bot(token: str) -> None:
         MainMenuScene,
         RatesMenuScene,
         ListRatesScene,
+        ExchangePathSourceScene,
+        ExchangePathTargetScene,
+        ExchangePathResultScene,
+        ReceivedAmountSourceScene,
+        ReceivedAmountTargetScene,
+        ReceivedAmountValueScene,
+        ReceivedAmountResultScene,
+        RequiredAmountSourceScene,
+        RequiredAmountTargetScene,
+        RequiredAmountValueScene,
+        RequiredAmountResultScene,
         AddRateSourceScene,
         AddRateTargetScene,
         AddRateValueScene,

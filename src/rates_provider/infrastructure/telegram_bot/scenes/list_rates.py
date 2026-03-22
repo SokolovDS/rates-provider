@@ -55,13 +55,13 @@ class ListRatesScene(BaseTelegramScene, state="rates_list"):
         return text, await self.reply_markup()
 
     @on.message.enter()
-    async def on_enter(
+    async def on_enter_from_message(
         self,
         message: Message,
         list_exchange_rates_use_case: ListExchangeRatesUseCase,
         current_user: InternalUser,
     ) -> None:
-        """Send list message when entered from a command/message."""
+        """Send list message when entered from a message event."""
         text, reply_markup = await self._list_payload(
             list_exchange_rates_use_case,
             current_user,

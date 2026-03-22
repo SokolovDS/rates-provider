@@ -19,3 +19,11 @@ class NonPositiveRateValueError(DomainValidationError):
 
 class NaiveTimestampError(DomainValidationError):
     """Raised when an exchange-rate timestamp is not timezone-aware."""
+
+
+class NoExchangePathError(DomainValidationError):
+    """Raised when no exchange route can be built for source and target currencies."""
+
+
+class NonPositiveAmountError(DomainValidationError):
+    """Raised when requested source or target amount is zero or negative."""

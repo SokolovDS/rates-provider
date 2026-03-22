@@ -3,7 +3,10 @@
 import asyncio
 from typing import Any, cast
 
-from rates_provider.infrastructure.telegram_bot.scenes.base import BaseTelegramScene
+from rates_provider.infrastructure.telegram_bot.scenes.base import (
+    BaseTelegramScene,
+    _prepare_scene_data_for_enter,
+)
 
 
 class _DummyTextBuilder:
@@ -42,3 +45,28 @@ def test_get_text_uses_empty_placeholder_for_blank_input() -> None:
     )
 
     assert result == "База\n\nОшибка\nВы ввели: <пусто>"
+
+
+def test_prepare_scene_data_for_enter_keeps_ui_message_id_by_default() -> None:
+    """Scene enter data should keep current UI shell unless explicitly reset."""
+    original_data = {"ui_message_id": 123, "source_currency": "USD"}
+
+    prepared_data = _prepare_scene_data_for_enter(
+        original_data,
+        ui_message_id_key="ui_message_id",
+        fresh_ui_message=False,
+    )
+
+    assert prepared_data == original_data
+    assert prepared_data is not original_data
+
+
+def test_prepare_scene_data_for_enter_drops_ui_message_id_for_fresh_ui() -> None:
+    """Scene enter data should drop UI shell id when a new message is required."""
+    prepared_data = _prepare_scene_data_for_enter(
+        {"ui_message_id": 123, "source_currency": "USD"},
+        ui_message_id_key="ui_message_id",
+        fresh_ui_message=True,
+    )
+
+    assert prepared_data == {"source_currency": "USD"}
