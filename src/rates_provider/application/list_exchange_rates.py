@@ -1,4 +1,4 @@
-"""Application use case for listing exchange-rate records."""
+"""Application use case for listing active latest exchange-rate records."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,7 +10,7 @@ from rates_provider.domain.repositories import ExchangeRateRepository
 
 @dataclass(frozen=True, slots=True)
 class ExchangeRateListItem:
-    """Output DTO describing a single stored exchange-rate record."""
+    """Output DTO describing a single active exchange-rate record."""
 
     source_currency: str
     target_currency: str
@@ -20,20 +20,20 @@ class ExchangeRateListItem:
 
 @dataclass(frozen=True, slots=True)
 class ListExchangeRatesResult:
-    """Output DTO describing all stored exchange-rate records."""
+    """Output DTO describing active latest exchange-rate records."""
 
     exchange_rates: tuple[ExchangeRateListItem, ...]
 
 
 class ListExchangeRatesUseCase:
-    """Read and return the full exchange-rate history from storage."""
+    """Read and return active latest exchange rates from storage."""
 
     def __init__(self, repository: ExchangeRateRepository) -> None:
         """Initialize the use case with an exchange-rate repository."""
         self._repository = repository
 
     async def execute(self, user_id: str) -> ListExchangeRatesResult:
-        """Load stored exchange-rate records for a user and map them to DTOs."""
+        """Load active latest exchange-rate records and map them to DTOs."""
         normalized_user_id = normalize_user_id(user_id)
         exchange_rates = await self._repository.list_all(normalized_user_id)
         return ListExchangeRatesResult(

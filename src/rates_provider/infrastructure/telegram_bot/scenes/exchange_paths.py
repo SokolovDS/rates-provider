@@ -1,7 +1,7 @@
 """Scenes for searching profitable exchange routes in Telegram bot UI."""
 
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import ClassVar
+from typing import ClassVar, cast
 
 from aiogram import F
 from aiogram.fsm.scene import on
@@ -154,7 +154,7 @@ class _ExchangeResultScene(BaseTelegramScene):
         if isinstance(raw_lines, list) and all(
             isinstance(line, str) for line in raw_lines
         ):
-            return list(raw_lines)
+            return cast(list[str], list(raw_lines))
         return ["Результат", "", "Не удалось отобразить результат."]
 
     @on.callback_query(F.data == "to_rates_menu")

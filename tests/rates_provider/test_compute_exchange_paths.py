@@ -38,6 +38,19 @@ class PreloadedExchangeRateRepository(ExchangeRateRepository):
         """Append operation is unsupported for this read-only test double."""
         raise NotImplementedError
 
+    async def update(self, user_id: str, exchange_rate: ExchangeRate) -> None:
+        """Update operation is unsupported for this read-only test double."""
+        raise NotImplementedError
+
+    async def delete(
+        self,
+        user_id: str,
+        source_currency: CurrencyCode,
+        target_currency: CurrencyCode,
+    ) -> None:
+        """Delete operation is unsupported for this read-only test double."""
+        raise NotImplementedError
+
     async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:
         """Return all predefined rates for a specific user."""
         return self._rates_by_user.get(user_id, tuple())

@@ -6,7 +6,6 @@ from aiogram import F
 from aiogram.fsm.scene import on
 from aiogram.types import CallbackQuery, InlineKeyboardButton
 
-from .add_rate import AddRateSourceScene
 from .base import BaseTelegramScene
 from .exchange_paths import (
     ExchangePathSourceScene,
@@ -21,8 +20,7 @@ class RatesMenuScene(BaseTelegramScene, state="rates_menu"):
 
     _TEXT_LINES: ClassVar[list[str]] = ["Курсы: выбери действие."]
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = [
-        InlineKeyboardButton(text="Добавить курс", callback_data="add_rate"),
-        InlineKeyboardButton(text="Показать все курсы",
+        InlineKeyboardButton(text="Показать актуальные курсы",
                              callback_data="list_rates"),
         InlineKeyboardButton(
             text="Найти выгодный маршрут обмена",
@@ -37,12 +35,6 @@ class RatesMenuScene(BaseTelegramScene, state="rates_menu"):
             callback_data="calculate_required_amount",
         ),
     ]
-
-    @on.callback_query(F.data == "add_rate")
-    async def on_add_rate_click(self, callback_query: CallbackQuery) -> None:
-        """Transition from rates submenu to first add-rate step."""
-        await callback_query.answer()
-        await self.wizard.goto(AddRateSourceScene)
 
     @on.callback_query(F.data == "list_rates")
     async def on_list_rates_click(self, callback_query: CallbackQuery) -> None:

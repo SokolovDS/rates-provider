@@ -1,16 +1,13 @@
-"""Tests for add-rate scene validation helpers and domain error mapping."""
+"""Tests for edit-rate scene validation helpers and error mapping."""
 
 from decimal import Decimal, InvalidOperation
 
 import pytest
 
-from rates_provider.domain.exceptions import (
-    DomainValidationError,
-    IdenticalCurrencyPairError,
-    InvalidCurrencyCodeError,
-    NonPositiveRateValueError,
+from rates_provider.domain.exceptions import DomainValidationError, NonPositiveRateValueError
+from rates_provider.infrastructure.telegram_bot.scenes.edit_rate import (
+    edit_error_message,
 )
-from rates_provider.infrastructure.telegram_bot.scenes.add_rate import _domain_error_message
 from rates_provider.infrastructure.telegram_bot.scenes.formatting import (
     format_rate_value_plain,
     parse_rate_value,
@@ -35,14 +32,6 @@ def test_format_rate_value_uses_plain_decimal_notation() -> None:
     ("error", "expected_message"),
     [
         (
-            InvalidCurrencyCodeError("bad code"),
-            "Ошибка: валюта должна быть из 3 латинских букв, например USD.",
-        ),
-        (
-            IdenticalCurrencyPairError("same pair"),
-            "Ошибка: целевая валюта должна отличаться от исходной.",
-        ),
-        (
             NonPositiveRateValueError("not positive"),
             "Ошибка: курс должен быть положительным числом, например 90.50.",
         ),
@@ -51,14 +40,15 @@ def test_format_rate_value_uses_plain_decimal_notation() -> None:
             "Ошибка: курс должен быть положительным числом, например 90.50.",
         ),
         (
+            ValueError("not found"),
+            "Ошибка: выбранная валютная пара не найдена.",
+        ),
+        (
             DomainValidationError("generic"),
-            "Ошибка: не удалось сохранить курс. Проверьте введенные данные.",
+            "Ошибка: не удалось изменить курс. Проверьте введенные данные.",
         ),
     ],
 )
-def test_domain_error_message_mapping(
-    error: Exception,
-    expected_message: str,
-) -> None:
-    """Domain errors should be mapped to user-friendly Russian error messages."""
-    assert _domain_error_message(error) == expected_message
+def test_edit_error_message_mapping(error: Exception, expected_message: str) -> None:
+    """Edit scene should map domain and parsing errors to user-friendly text."""
+    assert edit_error_message(error) == expected_message
