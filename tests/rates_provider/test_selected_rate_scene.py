@@ -7,7 +7,7 @@ from rates_provider.application.list_exchange_rates import (
     ExchangeRateListItem,
     ListExchangeRatesResult,
 )
-from rates_provider.infrastructure.telegram_bot.scenes.selected_rate import (
+from rates_provider.infrastructure.telegram_bot.scenes.my_rates.selected_rate import (
     _build_selected_pair_lines,
 )
 

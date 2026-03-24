@@ -15,14 +15,14 @@ from rates_provider.application.list_exchange_rates import (
 )
 from users_service.domain.user import User as InternalUser
 
-from .add_rate import AddRateSourceScene
-from .base import BaseTelegramScene
-from .formatting import format_rate_value_plain
-from .selected_rate import SelectedRateScene
-from .state_keys import (
+from ..base import BaseTelegramScene
+from ..shared.formatting import format_rate_value_plain
+from ..shared.state_keys import (
     SELECTED_RATE_SOURCE_CURRENCY_KEY,
     SELECTED_RATE_TARGET_CURRENCY_KEY,
 )
+from .add_rate import AddRateSourceScene
+from .selected_rate import SelectedRateScene
 
 ADD_RATE_CALLBACK_DATA = "list_add_rate"
 PAIR_CALLBACK_PREFIX = "rate_pair"

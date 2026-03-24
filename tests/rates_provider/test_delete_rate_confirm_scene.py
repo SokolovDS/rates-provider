@@ -1,6 +1,6 @@
 """Tests for delete-rate confirmation scene configuration."""
 
-from rates_provider.infrastructure.telegram_bot.scenes.delete_rate_confirm import (
+from rates_provider.infrastructure.telegram_bot.scenes.my_rates.delete_rate_confirm import (
     DeleteRateConfirmScene,
     _build_delete_success_text,
 )

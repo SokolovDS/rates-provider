@@ -7,16 +7,16 @@ from rates_provider.application.list_exchange_rates import (
     ExchangeRateListItem,
     ListExchangeRatesResult,
 )
-from rates_provider.infrastructure.telegram_bot.scenes.formatting import (
-    format_created_at_utc,
-    format_rate_value_plain,
-)
-from rates_provider.infrastructure.telegram_bot.scenes.list_rates import (
+from rates_provider.infrastructure.telegram_bot.scenes.my_rates.list_rates import (
     ADD_RATE_CALLBACK_DATA,
     _build_list_rates_lines,
     _build_pair_callback_data,
     _build_pairs_keyboard_rows,
     _parse_pair_callback_data,
+)
+from rates_provider.infrastructure.telegram_bot.scenes.shared.formatting import (
+    format_created_at_utc,
+    format_rate_value_plain,
 )
 
 

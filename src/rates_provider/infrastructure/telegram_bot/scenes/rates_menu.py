@@ -12,7 +12,7 @@ from .exchange_paths import (
     ReceivedAmountSourceScene,
     RequiredAmountSourceScene,
 )
-from .list_rates import ListRatesScene
+from .my_rates.list_rates import ListRatesScene
 
 
 class RatesMenuScene(BaseTelegramScene, state="rates_menu"):
@@ -20,7 +20,7 @@ class RatesMenuScene(BaseTelegramScene, state="rates_menu"):
 
     _TEXT_LINES: ClassVar[list[str]] = ["Курсы: выбери действие."]
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = [
-        InlineKeyboardButton(text="Показать актуальные курсы",
+        InlineKeyboardButton(text="Мои курсы",
                              callback_data="list_rates"),
         InlineKeyboardButton(
             text="Найти выгодный маршрут обмена",

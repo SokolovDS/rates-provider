@@ -28,9 +28,6 @@ from users_service.application.resolve_or_create_telegram_user import (
 )
 from users_service.infrastructure.telegram.ensure_user import EnsureTelegramUserMiddleware
 
-from .scenes.add_rate import AddRateSourceScene, AddRateTargetScene, AddRateValueScene
-from .scenes.delete_rate_confirm import DeleteRateConfirmScene
-from .scenes.edit_rate import EditRateValueScene
 from .scenes.exchange_paths import (
     ExchangePathResultScene,
     ExchangePathSourceScene,
@@ -44,10 +41,17 @@ from .scenes.exchange_paths import (
     RequiredAmountTargetScene,
     RequiredAmountValueScene,
 )
-from .scenes.list_rates import ListRatesScene
 from .scenes.main_menu import MainMenuScene
+from .scenes.my_rates.add_rate import (
+    AddRateSourceScene,
+    AddRateTargetScene,
+    AddRateValueScene,
+)
+from .scenes.my_rates.delete_rate_confirm import DeleteRateConfirmScene
+from .scenes.my_rates.edit_rate import EditRateValueScene
+from .scenes.my_rates.list_rates import ListRatesScene
+from .scenes.my_rates.selected_rate import SelectedRateScene
 from .scenes.rates_menu import RatesMenuScene
-from .scenes.selected_rate import SelectedRateScene
 
 __all__ = ["run_bot"]
 

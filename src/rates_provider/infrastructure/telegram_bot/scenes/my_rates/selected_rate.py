@@ -12,11 +12,9 @@ from rates_provider.application.list_exchange_rates import (
 )
 from users_service.domain.user import User as InternalUser
 
-from .base import BaseTelegramScene
-from .delete_rate_confirm import DeleteRateConfirmScene
-from .edit_rate import EditRateValueScene
-from .formatting import format_created_at_utc, format_rate_value_plain
-from .state_keys import (
+from ..base import BaseTelegramScene
+from ..shared.formatting import format_created_at_utc, format_rate_value_plain
+from ..shared.state_keys import (
     DELETE_RATE_SOURCE_CURRENCY_KEY,
     DELETE_RATE_TARGET_CURRENCY_KEY,
     EDIT_RATE_SOURCE_CURRENCY_KEY,
@@ -24,6 +22,8 @@ from .state_keys import (
     SELECTED_RATE_SOURCE_CURRENCY_KEY,
     SELECTED_RATE_TARGET_CURRENCY_KEY,
 )
+from .delete_rate_confirm import DeleteRateConfirmScene
+from .edit_rate import EditRateValueScene
 
 EDIT_SELECTED_RATE_CALLBACK_DATA = "selected_rate_edit"
 DELETE_SELECTED_RATE_CALLBACK_DATA = "selected_rate_delete"

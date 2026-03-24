@@ -12,8 +12,8 @@ from rates_provider.application.delete_exchange_rate import (
 )
 from users_service.domain.user import User as InternalUser
 
-from .base import BaseTelegramScene
-from .state_keys import (
+from ..base import BaseTelegramScene
+from ..shared.state_keys import (
     DELETE_RATE_SOURCE_CURRENCY_KEY,
     DELETE_RATE_TARGET_CURRENCY_KEY,
 )

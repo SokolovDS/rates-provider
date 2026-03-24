@@ -19,12 +19,12 @@ from rates_provider.domain.exceptions import (
 )
 from users_service.domain.user import User as InternalUser
 
-from .base import BaseTelegramScene, handle_exceptions
-from .formatting import format_rate_value_plain, parse_rate_value
-from .state_keys import (
+from ..base import BaseTelegramScene, handle_exceptions
+from ..shared.formatting import format_rate_value_plain, parse_rate_value
+from ..shared.state_keys import (
     ADD_RATE_SOURCE_CURRENCY_KEY as SOURCE_CURRENCY_KEY,
 )
-from .state_keys import (
+from ..shared.state_keys import (
     ADD_RATE_TARGET_CURRENCY_KEY as TARGET_CURRENCY_KEY,
 )
 

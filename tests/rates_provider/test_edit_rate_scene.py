@@ -5,10 +5,10 @@ from decimal import Decimal, InvalidOperation
 import pytest
 
 from rates_provider.domain.exceptions import DomainValidationError, NonPositiveRateValueError
-from rates_provider.infrastructure.telegram_bot.scenes.edit_rate import (
+from rates_provider.infrastructure.telegram_bot.scenes.my_rates.edit_rate import (
     edit_error_message,
 )
-from rates_provider.infrastructure.telegram_bot.scenes.formatting import (
+from rates_provider.infrastructure.telegram_bot.scenes.shared.formatting import (
     format_rate_value_plain,
     parse_rate_value,
 )

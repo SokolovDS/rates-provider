@@ -10,8 +10,10 @@ from rates_provider.domain.exceptions import (
     InvalidCurrencyCodeError,
     NonPositiveRateValueError,
 )
-from rates_provider.infrastructure.telegram_bot.scenes.add_rate import _domain_error_message
-from rates_provider.infrastructure.telegram_bot.scenes.formatting import (
+from rates_provider.infrastructure.telegram_bot.scenes.my_rates.add_rate import (
+    _domain_error_message,
+)
+from rates_provider.infrastructure.telegram_bot.scenes.shared.formatting import (
     format_rate_value_plain,
     parse_rate_value,
 )
