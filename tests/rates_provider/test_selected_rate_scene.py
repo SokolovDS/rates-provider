@@ -23,11 +23,8 @@ def test_build_selected_pair_lines_shows_selected_pair_and_action_prompt() -> No
     result = ListExchangeRatesResult(exchange_rates=(selected_item,))
 
     assert _build_selected_pair_lines(result, "USD", "EUR") == [
-        "Курсы обмена",
         "Пара: USD -> EUR",
         "Текущий курс: 90.50 (2026.03.19 11:00:00 UTC)",
-        "",
-        "Выбери действие:",
     ]
 
 
@@ -42,7 +39,5 @@ def test_build_selected_pair_lines_returns_not_found_message() -> None:
     result = ListExchangeRatesResult(exchange_rates=(item,))
 
     assert _build_selected_pair_lines(result, "EUR", "USD") == [
-        "Курсы обмена",
-        "",
         "Выбранная валютная пара не найдена.",
     ]

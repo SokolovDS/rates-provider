@@ -3,7 +3,6 @@
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from typing import ClassVar, cast
 
-from aiogram import F
 from aiogram.fsm.scene import on
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 
@@ -25,6 +24,9 @@ from rates_provider.domain.exceptions import (
     InvalidCurrencyCodeError,
     NoExchangePathError,
     NonPositiveAmountError,
+)
+from rates_provider.infrastructure.telegram_bot.callbacks.exchange_paths import (
+    ExchangePathsResultCallback,
 )
 from users_service.domain.user import User as InternalUser
 
@@ -144,7 +146,9 @@ class _ExchangeResultScene(BaseTelegramScene):
     """Base result scene with reusable rendering and explicit menu action."""
 
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = [
-        InlineKeyboardButton(text="В меню", callback_data="to_rates_menu")
+        InlineKeyboardButton(
+            text="В меню", callback_data=ExchangePathsResultCallback().pack()
+        )
     ]
 
     async def _create_base_lines(self) -> list[str]:
@@ -157,8 +161,11 @@ class _ExchangeResultScene(BaseTelegramScene):
             return cast(list[str], list(raw_lines))
         return ["Результат", "", "Не удалось отобразить результат."]
 
-    @on.callback_query(F.data == "to_rates_menu")
-    async def on_menu_click(self, callback_query: CallbackQuery) -> None:
+    @on.callback_query(ExchangePathsResultCallback.filter())
+    async def on_menu_click(
+        self,
+        callback_query: CallbackQuery,
+    ) -> None:
         """Open rates menu as a fresh message and preserve result output above."""
         await callback_query.answer()
         await self.collapse_to("rates_menu", fresh_ui_message=True)

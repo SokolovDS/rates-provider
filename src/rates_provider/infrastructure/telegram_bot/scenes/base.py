@@ -4,11 +4,12 @@ from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, ClassVar
 
-from aiogram import F
 from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.fsm.scene import Scene, on
 from aiogram.fsm.state import State
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+
+from ..callbacks.navigation import BackNavigationCallback
 
 
 def _prepare_scene_data_for_enter(
@@ -61,7 +62,7 @@ class BaseTelegramScene(Scene):
     _TEXT_LINES: ClassVar[list[str]] = []
     _PROMPT_TEXT: ClassVar[str] = ""
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = []
-    _BACK_CALLBACK_DATA: ClassVar[str] = "back"
+    _BACK_CALLBACK_DATA: ClassVar[str] = BackNavigationCallback().pack()
     _BACK_BUTTON_TEXT: ClassVar[str] = "⬅️ Назад"
     _UI_MESSAGE_ID_KEY: ClassVar[str] = "ui_message_id"
 
@@ -76,6 +77,10 @@ class BaseTelegramScene(Scene):
 
     async def _create_base_lines(self) -> list[str]:
         """Create base text lines without error. Override in subclasses for custom logic."""
+        if self._PROMPT_TEXT and self._TEXT_LINES:
+            return [*self._TEXT_LINES, "", self._PROMPT_TEXT]
+        if self._PROMPT_TEXT:
+            return [self._PROMPT_TEXT]
         return self._TEXT_LINES
 
     async def _get_text(
@@ -99,12 +104,14 @@ class BaseTelegramScene(Scene):
     ) -> tuple[str, InlineKeyboardMarkup | None]:
         """Build text and markup payload using _get_text() and buttons."""
         text = await self._get_text(error_text=error_text, user_input=user_input)
-        return text, await self.reply_markup()
+        markup = await self._reply_markup()
+        return text, markup
 
-    async def reply_markup(self) -> InlineKeyboardMarkup | None:
-        """Build keyboard with scene buttons and auto-added back button."""
-        rows = self._configured_rows()
-
+    async def _build_markup(
+        self,
+        rows: list[list[InlineKeyboardButton]],
+    ) -> InlineKeyboardMarkup | None:
+        """Finalize keyboard rows by appending back navigation when available."""
         if await self._has_previous_scene():
             rows.append(
                 [
@@ -118,6 +125,17 @@ class BaseTelegramScene(Scene):
         if not rows:
             return None
         return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    async def _reply_markup(self) -> InlineKeyboardMarkup | None:
+        """Build keyboard with scene buttons and auto-added back button."""
+        return await self._build_markup(self._configured_rows())
+
+    async def _payload_for_enter(
+        self,
+        **_: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build scene payload for enter handlers that receive injected dependencies."""
+        return await self._payload()
 
     async def _render_for_message(
         self,
@@ -140,20 +158,19 @@ class BaseTelegramScene(Scene):
                 )
                 return
             except TelegramBadRequest as error:
-                if self._is_message_not_modified_error(error):
+                if "message is not modified" in str(error).lower():
                     return
                 pass
 
         ui_message = await message.answer(text, reply_markup=reply_markup)
         await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: ui_message.message_id})
 
-    @staticmethod
-    def _is_message_not_modified_error(error: TelegramBadRequest) -> bool:
-        """Return True when Telegram rejects edit because content did not change."""
-        return "message is not modified" in str(error).lower()
 
-    @on.callback_query(F.data == "back")
-    async def on_back_click(self, callback_query: CallbackQuery) -> None:
+    @on.callback_query(BackNavigationCallback.filter())
+    async def on_back_click(
+        self,
+        callback_query: CallbackQuery,
+    ) -> None:
         """Return to the previous scene using scene history."""
         await callback_query.answer()
         if not await self._has_previous_scene():
@@ -161,19 +178,23 @@ class BaseTelegramScene(Scene):
         await self.wizard.back()
 
     @on.message.enter()
-    async def on_enter_from_message(self, message: Message) -> None:
+    async def on_enter_from_message(self, message: Message, **kwargs: Any) -> None:
         """Render scene when entered from a message event."""
-        text, reply_markup = await self._payload()
+        text, reply_markup = await self._payload_for_enter(**kwargs)
         await self._render_for_message(message, text, reply_markup)
 
     @on.callback_query.enter()
-    async def on_enter_from_callback(self, callback_query: CallbackQuery) -> None:
+    async def on_enter_from_callback(
+        self,
+        callback_query: CallbackQuery,
+        **kwargs: Any,
+    ) -> None:
         """Render scene by editing the current UI message when entered from a callback."""
         await callback_query.answer()
         message = callback_query.message
         if not isinstance(message, Message):
             return
-        text, reply_markup = await self._payload()
+        text, reply_markup = await self._payload_for_enter(**kwargs)
         await message.edit_text(text, reply_markup=reply_markup)
         await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: message.message_id})
 

@@ -18,10 +18,7 @@ from users_service.domain.user import User as InternalUser
 
 from ..base import BaseTelegramScene, handle_exceptions
 from ..shared.formatting import format_rate_value_plain, parse_rate_value
-from ..shared.state_keys import (
-    EDIT_RATE_SOURCE_CURRENCY_KEY,
-    EDIT_RATE_TARGET_CURRENCY_KEY,
-)
+from ..shared.state_keys import SOURCE_CURRENCY_KEY, TARGET_CURRENCY_KEY
 
 
 def edit_error_message(error: Exception) -> str:
@@ -43,8 +40,8 @@ class EditRateValueScene(BaseTelegramScene, state="edit_rate:value"):
     async def _create_base_lines(self) -> list[str]:
         """Build prompt lines with selected currency pair context."""
         data = await self.wizard.get_data()
-        source_currency = str(data.get(EDIT_RATE_SOURCE_CURRENCY_KEY, "-"))
-        target_currency = str(data.get(EDIT_RATE_TARGET_CURRENCY_KEY, "-"))
+        source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
+        target_currency = str(data.get(TARGET_CURRENCY_KEY, "-"))
         return [
             "Изменение курса",
             f"Пара: {source_currency} -> {target_currency}",
@@ -65,8 +62,8 @@ class EditRateValueScene(BaseTelegramScene, state="edit_rate:value"):
         rate_value = parse_rate_value(message.text or "")
 
         data = await self.wizard.get_data()
-        source_currency = str(data.get(EDIT_RATE_SOURCE_CURRENCY_KEY, ""))
-        target_currency = str(data.get(EDIT_RATE_TARGET_CURRENCY_KEY, ""))
+        source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
+        target_currency = str(data.get(TARGET_CURRENCY_KEY, ""))
 
         result = await update_exchange_rate_use_case.execute(
             UpdateExchangeRateCommand(

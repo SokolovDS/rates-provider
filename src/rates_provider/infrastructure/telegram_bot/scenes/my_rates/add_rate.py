@@ -21,12 +21,7 @@ from users_service.domain.user import User as InternalUser
 
 from ..base import BaseTelegramScene, handle_exceptions
 from ..shared.formatting import format_rate_value_plain, parse_rate_value
-from ..shared.state_keys import (
-    ADD_RATE_SOURCE_CURRENCY_KEY as SOURCE_CURRENCY_KEY,
-)
-from ..shared.state_keys import (
-    ADD_RATE_TARGET_CURRENCY_KEY as TARGET_CURRENCY_KEY,
-)
+from ..shared.state_keys import SOURCE_CURRENCY_KEY, TARGET_CURRENCY_KEY
 
 
 def _domain_error_message(error: Exception) -> str:
@@ -43,11 +38,8 @@ def _domain_error_message(error: Exception) -> str:
 class AddRateSourceScene(BaseTelegramScene, state="add_rate:source"):
     """Step 1 scene that asks the source currency."""
 
+    _TEXT_LINES: ClassVar[list[str]] = ["Добавление курса", ""]
     _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Введи исходную валюту (например USD)."
-
-    async def _create_base_lines(self) -> list[str]:
-        """Create source-currency prompt base text lines."""
-        return ["Добавление курса", "", self._PROMPT_TEXT]
 
     @on.message()
     async def on_source_currency(self, message: Message) -> None:

@@ -3,16 +3,18 @@
 from datetime import UTC, datetime
 from decimal import Decimal
 
+import pytest
+
 from rates_provider.application.list_exchange_rates import (
     ExchangeRateListItem,
     ListExchangeRatesResult,
 )
+from rates_provider.infrastructure.telegram_bot.callbacks.my_rates import (
+    RatePairCallback,
+)
 from rates_provider.infrastructure.telegram_bot.scenes.my_rates.list_rates import (
-    ADD_RATE_CALLBACK_DATA,
     _build_list_rates_lines,
-    _build_pair_callback_data,
     _build_pairs_keyboard_rows,
-    _parse_pair_callback_data,
 )
 from rates_provider.infrastructure.telegram_bot.scenes.shared.formatting import (
     format_created_at_utc,
@@ -37,7 +39,11 @@ def test_build_list_rates_lines_returns_empty_state() -> None:
     """List scene should show an explicit empty-state message when no rates exist."""
     result = ListExchangeRatesResult(exchange_rates=tuple())
 
-    assert _build_list_rates_lines(result) == [
+    assert _build_list_rates_lines(
+        result,
+        text_lines=["Курсы обмена"],
+        prompt_text="Выбери валютную пару из списка ниже.",
+    ) == [
         "Курсы обмена",
         "",
         "Курсы пока не добавлены.",
@@ -60,7 +66,11 @@ def test_build_list_rates_lines_preserves_latest_pair_order() -> None:
     )
     result = ListExchangeRatesResult(exchange_rates=(first_item, second_item))
 
-    assert _build_list_rates_lines(result) == [
+    assert _build_list_rates_lines(
+        result,
+        text_lines=["Курсы обмена"],
+        prompt_text="Выбери валютную пару из списка ниже.",
+    ) == [
         "Курсы обмена",
         "",
         "Выбери валютную пару из списка ниже.",
@@ -86,26 +96,33 @@ def test_build_pairs_keyboard_rows_contains_one_button_per_pair() -> None:
     rows = _build_pairs_keyboard_rows(result)
 
     assert rows[0][0].text == "USD -> EUR = 80"
-    assert rows[0][0].callback_data == "rate_pair:USD:EUR"
+    assert rows[0][0].callback_data == RatePairCallback(
+        source_currency="USD",
+        target_currency="EUR",
+    ).pack()
     assert rows[1][0].text == "EUR -> RUB = 90.50"
-    assert rows[1][0].callback_data == "rate_pair:EUR:RUB"
-
-
-def test_list_scene_exposes_add_rate_callback_data_constant() -> None:
-    """List scene should expose callback id for add-rate action button."""
-    assert ADD_RATE_CALLBACK_DATA == "list_add_rate"
+    assert rows[1][0].callback_data == RatePairCallback(
+        source_currency="EUR",
+        target_currency="RUB",
+    ).pack()
 
 
 def test_pair_callback_data_roundtrip() -> None:
-    """Scene helpers should encode and decode pair callback payloads."""
-    callback_data = _build_pair_callback_data("rate_edit", "USD", "EUR")
+    """Callback contract should encode and decode pair callback payloads."""
+    callback_data = RatePairCallback(
+        source_currency="USD",
+        target_currency="EUR",
+    ).pack()
+    unpacked = RatePairCallback.unpack(callback_data)
 
-    assert callback_data == "rate_edit:USD:EUR"
-    assert _parse_pair_callback_data(
-        callback_data, "rate_edit") == ("USD", "EUR")
+    assert unpacked.source_currency == "USD"
+    assert unpacked.target_currency == "EUR"
 
 
 def test_pair_callback_data_parser_rejects_invalid_payload() -> None:
-    """Scene helper should reject callback payload with unexpected format."""
-    assert _parse_pair_callback_data("rate_edit:USD", "rate_edit") is None
-    assert _parse_pair_callback_data("unknown:USD:EUR", "rate_edit") is None
+    """Callback contract should reject payload with unexpected format."""
+    with pytest.raises(TypeError):
+        RatePairCallback.unpack("rate_pair:USD")
+
+    with pytest.raises(ValueError):
+        RatePairCallback.unpack("unknown:USD:EUR")

@@ -2,7 +2,6 @@
 
 from typing import ClassVar
 
-from aiogram import F
 from aiogram.fsm.scene import on
 from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
 
@@ -10,13 +9,13 @@ from rates_provider.application.delete_exchange_rate import (
     DeleteExchangeRateCommand,
     DeleteExchangeRateUseCase,
 )
+from rates_provider.infrastructure.telegram_bot.callbacks.my_rates import (
+    DeleteRateConfirmCallback,
+)
 from users_service.domain.user import User as InternalUser
 
 from ..base import BaseTelegramScene
-from ..shared.state_keys import (
-    DELETE_RATE_SOURCE_CURRENCY_KEY,
-    DELETE_RATE_TARGET_CURRENCY_KEY,
-)
+from ..shared.state_keys import SOURCE_CURRENCY_KEY, TARGET_CURRENCY_KEY
 
 
 def _build_delete_success_text(source_currency: str, target_currency: str) -> str:
@@ -32,14 +31,14 @@ class DeleteRateConfirmScene(BaseTelegramScene, state="delete_rate:confirm"):
 
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = [
         InlineKeyboardButton(
-            text="Удалить", callback_data="confirm_delete_rate")
+            text="Удалить", callback_data=DeleteRateConfirmCallback().pack())
     ]
 
     async def _create_base_lines(self) -> list[str]:
         """Build confirmation prompt with selected pair context."""
         data = await self.wizard.get_data()
-        source_currency = str(data.get(DELETE_RATE_SOURCE_CURRENCY_KEY, "-"))
-        target_currency = str(data.get(DELETE_RATE_TARGET_CURRENCY_KEY, "-"))
+        source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
+        target_currency = str(data.get(TARGET_CURRENCY_KEY, "-"))
         return [
             "Удаление курса",
             f"Пара: {source_currency} -> {target_currency}",
@@ -47,7 +46,7 @@ class DeleteRateConfirmScene(BaseTelegramScene, state="delete_rate:confirm"):
             "Подтверди удаление курса.",
         ]
 
-    @on.callback_query(F.data == "confirm_delete_rate")
+    @on.callback_query(DeleteRateConfirmCallback.filter())
     async def on_confirm_delete(
         self,
         callback_query: CallbackQuery,
@@ -57,8 +56,8 @@ class DeleteRateConfirmScene(BaseTelegramScene, state="delete_rate:confirm"):
         """Delete selected pair and return to active rates list scene."""
         await callback_query.answer()
         data = await self.wizard.get_data()
-        source_currency = str(data.get(DELETE_RATE_SOURCE_CURRENCY_KEY, ""))
-        target_currency = str(data.get(DELETE_RATE_TARGET_CURRENCY_KEY, ""))
+        source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
+        target_currency = str(data.get(TARGET_CURRENCY_KEY, ""))
 
         await delete_exchange_rate_use_case.execute(
             DeleteExchangeRateCommand(
