@@ -2,13 +2,13 @@
 
 from typing import ClassVar
 
-from aiogram import F
 from aiogram.fsm.scene import on
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
 )
 
+from ..callbacks.navigation import MainMenuCallback
 from .base import BaseTelegramScene
 from .rates_menu import RatesMenuScene
 
@@ -18,11 +18,15 @@ class MainMenuScene(BaseTelegramScene, state="main_menu"):
 
     _TEXT_LINES: ClassVar[list[str]] = ["Это главное меню, выбери действие:"]
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = [
-        InlineKeyboardButton(text="Курсы", callback_data="rates_menu")
+        InlineKeyboardButton(
+            text="Курсы", callback_data=MainMenuCallback().pack())
     ]
 
-    @on.callback_query(F.data == "rates_menu")
-    async def on_rates_menu_click(self, callback_query: CallbackQuery) -> None:
+    @on.callback_query(MainMenuCallback.filter())
+    async def on_rates_menu_click(
+        self,
+        callback_query: CallbackQuery,
+    ) -> None:
         """Transition from main menu to rates submenu scene."""
         await callback_query.answer()
         await self.wizard.goto(RatesMenuScene)

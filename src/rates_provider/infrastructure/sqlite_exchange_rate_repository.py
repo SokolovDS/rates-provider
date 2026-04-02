@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import cast
@@ -14,7 +14,7 @@ from rates_provider.domain.repositories import ExchangeRateRepository
 
 
 class SQLiteExchangeRateRepository(ExchangeRateRepository):
-    """Append-only SQLite storage for exchange-rate history."""
+    """Latest-only SQLite storage with soft deletion per currency pair."""
 
     def __init__(self, database_path: str) -> None:
         """Initialize repository and ensure schema exists."""
@@ -23,7 +23,7 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
         self._initialize_schema()
 
     async def add(self, user_id: str, exchange_rate: ExchangeRate) -> None:
-        """Append a new exchange-rate record to SQLite storage."""
+        """Upsert a user-scoped active exchange-rate record in SQLite storage."""
         with self._connect() as connection:
             connection.execute(
                 """
@@ -32,8 +32,14 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
                     source_currency,
                     target_currency,
                     rate_value,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?)
+                    created_at,
+                    deleted_at
+                ) VALUES (?, ?, ?, ?, ?, NULL)
+                ON CONFLICT(user_id, source_currency, target_currency)
+                DO UPDATE SET
+                    rate_value = excluded.rate_value,
+                    created_at = excluded.created_at,
+                    deleted_at = NULL
                 """,
                 (
                     user_id,
@@ -45,15 +51,76 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
             )
             connection.commit()
 
+    async def update(self, user_id: str, exchange_rate: ExchangeRate) -> None:
+        """Update an existing active exchange-rate record in SQLite storage."""
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE exchange_rates
+                SET rate_value = ?,
+                    created_at = ?,
+                    deleted_at = NULL
+                WHERE user_id = ?
+                  AND source_currency = ?
+                  AND target_currency = ?
+                  AND deleted_at IS NULL
+                """,
+                (
+                    str(exchange_rate.rate_value),
+                    exchange_rate.created_at.isoformat(),
+                    user_id,
+                    exchange_rate.source_currency.value,
+                    exchange_rate.target_currency.value,
+                ),
+            )
+            if cursor.rowcount == 0:
+                source = exchange_rate.source_currency.value
+                target = exchange_rate.target_currency.value
+                raise ValueError(
+                    f"Exchange rate {source}->{target} does not exist.")
+            connection.commit()
+
+    async def delete(
+        self,
+        user_id: str,
+        source_currency: CurrencyCode,
+        target_currency: CurrencyCode,
+    ) -> None:
+        """Soft-delete an active exchange-rate record for the provided pair."""
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE exchange_rates
+                SET deleted_at = ?
+                WHERE user_id = ?
+                  AND source_currency = ?
+                  AND target_currency = ?
+                  AND deleted_at IS NULL
+                """,
+                (
+                    datetime.now(tz=UTC).isoformat(),
+                    user_id,
+                    source_currency.value,
+                    target_currency.value,
+                ),
+            )
+            if cursor.rowcount == 0:
+                pair_name = f"{source_currency.value}->{target_currency.value}"
+                raise ValueError(
+                    f"Exchange rate {pair_name} does not exist."
+                )
+            connection.commit()
+
     async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:
-        """Return stored exchange-rate records for a specific user."""
+        """Return active latest exchange-rate records for a specific user."""
         with self._connect() as connection:
             rows = connection.execute(
                 """
                 SELECT user_id, source_currency, target_currency, rate_value, created_at
                 FROM exchange_rates
                 WHERE user_id = ?
-                ORDER BY id ASC
+                  AND deleted_at IS NULL
+                ORDER BY source_currency ASC, target_currency ASC
                 """,
                 (user_id,),
             ).fetchall()
@@ -62,26 +129,88 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
     def _initialize_schema(self) -> None:
         """Create required SQLite tables if they do not already exist."""
         with self._connect() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS exchange_rates (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL,
-                    source_currency TEXT NOT NULL,
-                    target_currency TEXT NOT NULL,
-                    rate_value TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                )
-                """
-            )
+            if not self._table_exists(connection, "exchange_rates"):
+                self._create_latest_only_table(connection)
+                self._create_indexes(connection)
+                connection.commit()
+                return
+
             self._ensure_user_id_column(connection)
-            connection.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_exchange_rates_user_id
-                ON exchange_rates(user_id)
-                """
-            )
+            if not self._has_column(connection, "exchange_rates", "deleted_at"):
+                self._migrate_history_table_to_latest_only(connection)
+
+            self._create_indexes(connection)
             connection.commit()
+
+    def _migrate_history_table_to_latest_only(
+        self,
+        connection: sqlite3.Connection,
+    ) -> None:
+        """Convert historical append-only schema into latest-only schema."""
+        connection.execute(
+            "ALTER TABLE exchange_rates RENAME TO exchange_rates_legacy")
+        self._create_latest_only_table(connection)
+
+        connection.execute(
+            """
+            INSERT INTO exchange_rates (
+                user_id,
+                source_currency,
+                target_currency,
+                rate_value,
+                created_at,
+                deleted_at
+            )
+            SELECT
+                legacy.user_id,
+                legacy.source_currency,
+                legacy.target_currency,
+                legacy.rate_value,
+                legacy.created_at,
+                NULL
+            FROM exchange_rates_legacy AS legacy
+            WHERE legacy.id = (
+                SELECT MAX(candidate.id)
+                FROM exchange_rates_legacy AS candidate
+                WHERE candidate.user_id = legacy.user_id
+                  AND candidate.source_currency = legacy.source_currency
+                  AND candidate.target_currency = legacy.target_currency
+            )
+            """
+        )
+        connection.execute("DROP TABLE exchange_rates_legacy")
+
+    def _create_latest_only_table(self, connection: sqlite3.Connection) -> None:
+        """Create latest-only exchange-rate table with pair uniqueness."""
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS exchange_rates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                source_currency TEXT NOT NULL,
+                target_currency TEXT NOT NULL,
+                rate_value TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                deleted_at TEXT,
+                UNIQUE(user_id, source_currency, target_currency)
+            )
+            """
+        )
+
+    def _create_indexes(self, connection: sqlite3.Connection) -> None:
+        """Create indexes needed for latest-only lookups and filtering."""
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_exchange_rates_user_id
+            ON exchange_rates(user_id)
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_exchange_rates_active_pairs
+            ON exchange_rates(user_id, source_currency, target_currency, deleted_at)
+            """
+        )
 
     def _ensure_user_id_column(self, connection: sqlite3.Connection) -> None:
         """Ensure legacy schemas contain user_id required for per-user isolation."""
@@ -94,6 +223,31 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
         connection.execute(
             "ALTER TABLE exchange_rates ADD COLUMN user_id TEXT NOT NULL DEFAULT ''"
         )
+
+    def _table_exists(self, connection: sqlite3.Connection, table_name: str) -> bool:
+        """Return True when table exists in current SQLite database."""
+        row = connection.execute(
+            """
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'table' AND name = ?
+            """,
+            (table_name,),
+        ).fetchone()
+        return row is not None
+
+    def _has_column(
+        self,
+        connection: sqlite3.Connection,
+        table_name: str,
+        column_name: str,
+    ) -> bool:
+        """Return True when given table contains requested column."""
+        table_columns = connection.execute(
+            f"PRAGMA table_info({table_name})"
+        ).fetchall()
+        column_names = {cast(str, row["name"]) for row in table_columns}
+        return column_name in column_names
 
     def _connect(self) -> sqlite3.Connection:
         """Open SQLite connection configured for named-column access."""

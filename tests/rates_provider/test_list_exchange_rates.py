@@ -23,6 +23,19 @@ class PreloadedExchangeRateRepository(ExchangeRateRepository):
         """Append operation is unsupported for this read-only test double."""
         raise NotImplementedError
 
+    async def update(self, user_id: str, exchange_rate: ExchangeRate) -> None:
+        """Update operation is unsupported for this read-only test double."""
+        raise NotImplementedError
+
+    async def delete(
+        self,
+        user_id: str,
+        source_currency: CurrencyCode,
+        target_currency: CurrencyCode,
+    ) -> None:
+        """Delete operation is unsupported for this read-only test double."""
+        raise NotImplementedError
+
     async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:
         """Return all predefined exchange rates in insertion order."""
         return self._exchange_rates
@@ -38,8 +51,8 @@ def test_list_exchange_rates_returns_empty_result_when_repository_is_empty() -> 
     assert result.exchange_rates == tuple()
 
 
-def test_list_exchange_rates_returns_all_records_in_insertion_order() -> None:
-    """Use case should expose all stored records preserving repository order."""
+def test_list_exchange_rates_returns_all_active_records_in_repository_order() -> None:
+    """Use case should expose active latest records preserving repository order."""
     first_timestamp = datetime(2026, 1, 10, 12, 30, tzinfo=UTC)
     second_timestamp = datetime(2026, 1, 11, 8, 15, tzinfo=UTC)
     first_rate = ExchangeRate(
@@ -81,6 +94,17 @@ def test_list_exchange_rates_passes_user_id_to_repository() -> None:
         async def add(self, user_id: str, exchange_rate: ExchangeRate) -> None:
             raise NotImplementedError
 
+        async def update(self, user_id: str, exchange_rate: ExchangeRate) -> None:
+            raise NotImplementedError
+
+        async def delete(
+            self,
+            user_id: str,
+            source_currency: CurrencyCode,
+            target_currency: CurrencyCode,
+        ) -> None:
+            raise NotImplementedError
+
         async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:
             self.received_user_id = user_id
             return tuple()
@@ -102,6 +126,17 @@ def test_list_exchange_rates_normalizes_user_id_before_repository_call() -> None
             self.received_user_id: str | None = None
 
         async def add(self, user_id: str, exchange_rate: ExchangeRate) -> None:
+            raise NotImplementedError
+
+        async def update(self, user_id: str, exchange_rate: ExchangeRate) -> None:
+            raise NotImplementedError
+
+        async def delete(
+            self,
+            user_id: str,
+            source_currency: CurrencyCode,
+            target_currency: CurrencyCode,
+        ) -> None:
             raise NotImplementedError
 
         async def list_all(self, user_id: str) -> Sequence[ExchangeRate]:

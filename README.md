@@ -17,7 +17,7 @@ Current Telegram behavior:
 
 - `/start` always resets state and sends a new main menu message;
 - main menu contains action `Курсы`;
-- rates submenu contains actions: `Добавить курс` and `Показать все курсы`;
+- rates submenu contains actions: `Добавить курс` and `Показать актуальные курсы`;
 - add-rate flow is implemented via aiogram Scene Wizard API;
 - after menu entry, the bot edits one UI message for further screens;
 - non-menu screens include `Назад` button;
@@ -25,7 +25,9 @@ Current Telegram behavior:
 - add-rate flow is step-by-step: source currency -> target currency -> rate;
 - `Назад` in add-rate flow uses scene wizard navigation (`wizard.back`);
 - each next step re-shows already collected context lines;
-- list screen shows only current user's rates as `USD -> EUR = 90.50 (2026.03.19 11:00:00 UTC)`, newest first;
+- list screen shows only current user's active rates as `USD -> EUR = 90.50 (2026.03.19 11:00:00 UTC)`;
+- each listed pair has inline actions `Изменить` and `Удалить`;
+- delete flow asks for confirmation and performs soft delete for the selected pair;
 - Telegram screens with route calculations show calculated rates and deviation percents rounded to 2 decimal places;
 - rates are stored in SQLite, so records survive restarts.
 - on any handled Telegram interaction (message or callback), user account is
@@ -35,8 +37,10 @@ Current Telegram behavior:
 
 The project includes two application use cases:
 
-- `AddExchangeRateUseCase` for adding a validated rate record;
-- `ListExchangeRatesUseCase` for retrieving all records.
+- `AddExchangeRateUseCase` for adding or replacing a validated rate record;
+- `UpdateExchangeRateUseCase` for changing active rate value for an existing pair;
+- `DeleteExchangeRateUseCase` for soft deleting an active pair;
+- `ListExchangeRatesUseCase` for retrieving active records.
 - `ComputeExchangePathsUseCase` for computing ranked exchange routes between two currencies.
 - `ComputeReceivedAmountUseCase` for calculating how much target currency you get for a source amount.
 - `ComputeRequiredSourceAmountUseCase` for calculating how much source currency is needed for a target amount.
@@ -45,9 +49,10 @@ Current behavior:
 
 - exchange rates are validated in the domain layer;
 - currency codes are normalized to uppercase;
-- repeated additions for the same pair are stored as history;
+- repeated additions for the same pair replace active value (latest-only behavior);
+- users can update or soft-delete each active currency pair;
 - rates are isolated by internal user id;
-- user-specific records can be retrieved via a dedicated list use case;
+- user-specific active records can be retrieved via a dedicated list use case;
 - profitable exchange routes can be built across intermediate currencies;
 - routes are sorted from the best effective rate to the worst;
 - each route includes signed deviation percent from the best route;
@@ -65,7 +70,15 @@ from rates_provider.application.add_exchange_rate import (
 	AddExchangeRateCommand,
 	AddExchangeRateUseCase,
 )
+from rates_provider.application.delete_exchange_rate import (
+	DeleteExchangeRateCommand,
+	DeleteExchangeRateUseCase,
+)
 from rates_provider.application.list_exchange_rates import ListExchangeRatesUseCase
+from rates_provider.application.update_exchange_rate import (
+	UpdateExchangeRateCommand,
+	UpdateExchangeRateUseCase,
+)
 from rates_provider.application.compute_exchange_paths import (
 	ComputeExchangePathsCommand,
 	ComputeExchangePathsUseCase,

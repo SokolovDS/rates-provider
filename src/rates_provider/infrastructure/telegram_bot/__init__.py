@@ -16,7 +16,9 @@ from rates_provider.application.compute_exchange_paths import (
     ComputeReceivedAmountUseCase,
     ComputeRequiredSourceAmountUseCase,
 )
+from rates_provider.application.delete_exchange_rate import DeleteExchangeRateUseCase
 from rates_provider.application.list_exchange_rates import ListExchangeRatesUseCase
+from rates_provider.application.update_exchange_rate import UpdateExchangeRateUseCase
 from rates_provider.infrastructure.repository_factory import (
     build_exchange_rate_repository,
     build_user_repository,
@@ -26,7 +28,6 @@ from users_service.application.resolve_or_create_telegram_user import (
 )
 from users_service.infrastructure.telegram.ensure_user import EnsureTelegramUserMiddleware
 
-from .scenes.add_rate import AddRateSourceScene, AddRateTargetScene, AddRateValueScene
 from .scenes.exchange_paths import (
     ExchangePathResultScene,
     ExchangePathSourceScene,
@@ -40,8 +41,16 @@ from .scenes.exchange_paths import (
     RequiredAmountTargetScene,
     RequiredAmountValueScene,
 )
-from .scenes.list_rates import ListRatesScene
 from .scenes.main_menu import MainMenuScene
+from .scenes.my_rates.add_rate import (
+    AddRateSourceScene,
+    AddRateTargetScene,
+    AddRateValueScene,
+)
+from .scenes.my_rates.delete_rate_confirm import DeleteRateConfirmScene
+from .scenes.my_rates.edit_rate import EditRateValueScene
+from .scenes.my_rates.list_rates import ListRatesScene
+from .scenes.my_rates.selected_rate import SelectedRateScene
 from .scenes.rates_menu import RatesMenuScene
 
 __all__ = ["run_bot"]
@@ -61,6 +70,8 @@ async def run_bot(token: str) -> None:
     repository = build_exchange_rate_repository()
     user_repository = build_user_repository()
     add_exchange_rate_use_case = AddExchangeRateUseCase(repository)
+    update_exchange_rate_use_case = UpdateExchangeRateUseCase(repository)
+    delete_exchange_rate_use_case = DeleteExchangeRateUseCase(repository)
     list_exchange_rates_use_case = ListExchangeRatesUseCase(repository)
     compute_exchange_paths_use_case = ComputeExchangePathsUseCase(repository)
     compute_received_amount_use_case = ComputeReceivedAmountUseCase(repository)
@@ -75,6 +86,8 @@ async def run_bot(token: str) -> None:
     dp.update.outer_middleware(
         EnsureTelegramUserMiddleware(resolve_or_create_user_use_case))
     dp.workflow_data["add_exchange_rate_use_case"] = add_exchange_rate_use_case
+    dp.workflow_data["update_exchange_rate_use_case"] = update_exchange_rate_use_case
+    dp.workflow_data["delete_exchange_rate_use_case"] = delete_exchange_rate_use_case
     dp.workflow_data["list_exchange_rates_use_case"] = list_exchange_rates_use_case
     dp.workflow_data["compute_exchange_paths_use_case"] = compute_exchange_paths_use_case
     dp.workflow_data["compute_received_amount_use_case"] = compute_received_amount_use_case
@@ -89,6 +102,7 @@ async def run_bot(token: str) -> None:
         MainMenuScene,
         RatesMenuScene,
         ListRatesScene,
+        SelectedRateScene,
         ExchangePathSourceScene,
         ExchangePathTargetScene,
         ExchangePathResultScene,
@@ -103,6 +117,8 @@ async def run_bot(token: str) -> None:
         AddRateSourceScene,
         AddRateTargetScene,
         AddRateValueScene,
+        EditRateValueScene,
+        DeleteRateConfirmScene,
     )
 
     await dp.start_polling(bot)

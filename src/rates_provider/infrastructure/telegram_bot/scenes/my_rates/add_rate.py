@@ -1,13 +1,10 @@
 """Add-rate scene for Telegram bot UI."""
 
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 from typing import ClassVar
 
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.scene import on
-from aiogram.types import (
-    Message,
-)
+from aiogram.types import Message
 
 from rates_provider.application._validation import normalize_currency_code
 from rates_provider.application.add_exchange_rate import (
@@ -22,20 +19,9 @@ from rates_provider.domain.exceptions import (
 )
 from users_service.domain.user import User as InternalUser
 
-from .base import BaseTelegramScene, handle_exceptions
-
-SOURCE_CURRENCY_KEY: str = "source_currency"
-TARGET_CURRENCY_KEY: str = "target_currency"
-
-
-def _parse_rate(value: str) -> Decimal:
-    """Parse decimal input value from user text."""
-    return Decimal(value.strip())
-
-
-def _format_rate_value(rate_value: Decimal) -> str:
-    """Format Decimal rate without scientific notation."""
-    return format(rate_value, "f")
+from ..base import BaseTelegramScene, handle_exceptions
+from ..shared.formatting import format_rate_value_plain, parse_rate_value
+from ..shared.state_keys import SOURCE_CURRENCY_KEY, TARGET_CURRENCY_KEY
 
 
 def _domain_error_message(error: Exception) -> str:
@@ -52,11 +38,8 @@ def _domain_error_message(error: Exception) -> str:
 class AddRateSourceScene(BaseTelegramScene, state="add_rate:source"):
     """Step 1 scene that asks the source currency."""
 
+    _TEXT_LINES: ClassVar[list[str]] = ["Добавление курса", ""]
     _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Введи исходную валюту (например USD)."
-
-    async def _create_base_lines(self) -> list[str]:
-        """Create source-currency prompt base text lines."""
-        return ["Добавление курса", "", self._PROMPT_TEXT]
 
     @on.message()
     async def on_source_currency(self, message: Message) -> None:
@@ -128,13 +111,11 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
     ) -> None:
         """Accept and validate rate value, then return to rates menu scene."""
         await self._best_effort_delete_user_message(message)
-        rate_value = _parse_rate(message.text or "")
+        rate_value = parse_rate_value(message.text or "")
 
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
         target_currency = str(data.get(TARGET_CURRENCY_KEY, "-"))
-        ui_message_id = data.get(self._UI_MESSAGE_ID_KEY)
-        bot = message.bot
 
         result = await add_exchange_rate_use_case.execute(
             AddExchangeRateCommand(
@@ -148,19 +129,8 @@ class AddRateValueScene(BaseTelegramScene, state="add_rate:value"):
         success_text = (
             "Курс принят:\n"
             f"{result.source_currency} -> {result.target_currency} = "
-            f"{_format_rate_value(result.rate_value)}"
+            f"{format_rate_value_plain(result.rate_value)}"
         )
 
-        if isinstance(ui_message_id, int) and bot is not None:
-            try:
-                await bot.edit_message_text(
-                    chat_id=message.chat.id,
-                    message_id=ui_message_id,
-                    text=success_text,
-                )
-            except TelegramBadRequest:
-                await message.answer(success_text)
-        else:
-            await message.answer(success_text)
-
-        await self.collapse_to("rates_menu", fresh_ui_message=True)
+        await self._render_for_message(message, success_text, None)
+        await self.collapse_to("rates_list", fresh_ui_message=True)
