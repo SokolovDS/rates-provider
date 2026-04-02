@@ -81,7 +81,7 @@ class BaseTelegramScene(Scene):
             return [*self._TEXT_LINES, "", self._PROMPT_TEXT]
         if self._PROMPT_TEXT:
             return [self._PROMPT_TEXT]
-        return self._TEXT_LINES
+        return list(self._TEXT_LINES)
 
     async def _get_text(
         self,

@@ -243,8 +243,11 @@ class SQLiteExchangeRateRepository(ExchangeRateRepository):
         column_name: str,
     ) -> bool:
         """Return True when given table contains requested column."""
+        if table_name != "exchange_rates":
+            msg = f"Unexpected table name for schema inspection: {table_name!r}"
+            raise ValueError(msg)
         table_columns = connection.execute(
-            f"PRAGMA table_info({table_name})"
+            "PRAGMA table_info(exchange_rates)"
         ).fetchall()
         column_names = {cast(str, row["name"]) for row in table_columns}
         return column_name in column_names

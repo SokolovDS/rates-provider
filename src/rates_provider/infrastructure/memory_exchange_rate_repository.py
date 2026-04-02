@@ -21,8 +21,7 @@ class InMemoryExchangeRateRepository(ExchangeRateRepository):
 
     def __init__(self) -> None:
         """Initialize empty in-memory storage."""
-        self._exchange_rates: dict[tuple[str,
-                                         str, str], _StoredExchangeRate] = {}
+        self._exchange_rates: dict[tuple[str, str, str], _StoredExchangeRate] = {}
 
     async def add(self, user_id: str, exchange_rate: ExchangeRate) -> None:
         """Upsert an active exchange-rate record for a user currency pair."""

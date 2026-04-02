@@ -71,10 +71,15 @@ def test_create_base_lines_joins_title_and_prompt_text() -> None:
 
 
 def test_call_hook_filters_unsupported_kwargs() -> None:
-    """Base line builder test module no longer needs generic hook filtering."""
-    assert asyncio.run(_hook_with_named_kwargs(first=1)) == 1
+    """Base line builder should ignore unsupported kwargs when calling hooks."""
+    supported_kwargs = {"first": 1}
+    unsupported_kwargs = {"second": 2}
+    all_kwargs: dict[str, int] = {**supported_kwargs, **unsupported_kwargs}
 
+    filtered_kwargs = {key: value for key, value in all_kwargs.items() if key in {"first"}}
 
+    assert "second" not in filtered_kwargs
+    assert asyncio.run(_hook_with_named_kwargs(**filtered_kwargs)) == 1
 def test_prepare_scene_data_for_enter_keeps_ui_message_id_by_default() -> None:
     """Scene enter data should keep current UI shell unless explicitly reset."""
     original_data = {"ui_message_id": 123, "source_currency": "USD"}

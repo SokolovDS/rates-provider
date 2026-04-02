@@ -17,7 +17,7 @@ Current Telegram behavior:
 
 - `/start` always resets state and sends a new main menu message;
 - main menu contains action `Курсы`;
-- rates submenu contains actions: `Добавить курс` and `Показать актуальные курсы`;
+- rates submenu contains actions: `Добавить курс` and `Мои курсы`;
 - add-rate flow is implemented via aiogram Scene Wizard API;
 - after menu entry, the bot edits one UI message for further screens;
 - non-menu screens include `Назад` button;

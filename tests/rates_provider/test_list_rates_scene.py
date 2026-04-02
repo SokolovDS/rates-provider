@@ -121,8 +121,8 @@ def test_pair_callback_data_roundtrip() -> None:
 
 def test_pair_callback_data_parser_rejects_invalid_payload() -> None:
     """Callback contract should reject payload with unexpected format."""
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="takes 2 arguments but 1"):
         RatePairCallback.unpack("rate_pair:USD")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="unknown"):
         RatePairCallback.unpack("unknown:USD:EUR")
