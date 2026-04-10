@@ -42,6 +42,7 @@ class AddRateSourceScene(BaseTelegramScene, state="add_rate:source"):
     _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Введи исходную валюту (например USD)."
 
     @on.message()
+    @handle_exceptions(_domain_error_message, DomainValidationError)
     async def on_source_currency(self, message: Message) -> None:
         """Validate source currency and move to target step."""
         await self._best_effort_delete_user_message(message)
