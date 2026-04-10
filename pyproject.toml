@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-rates-provider = "rates_provider.main:main"
+rates-provider = "app.bootstrap.entrypoint:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

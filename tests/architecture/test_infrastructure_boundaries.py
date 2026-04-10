@@ -1,4 +1,4 @@
-"""Architecture tests for cross-context infrastructure import boundaries."""
+"""Architecture tests for module boundary rules in the new package structure."""
 
 from __future__ import annotations
 
@@ -6,15 +6,15 @@ import ast
 from pathlib import Path
 
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
-RATES_INFRA_PATH = WORKSPACE_ROOT / "src" / "rates_provider" / "infrastructure"
-USERS_INFRA_PATH = WORKSPACE_ROOT / "src" / "users_service" / "infrastructure"
+SRC_ROOT = WORKSPACE_ROOT / "src"
 
-# Temporary composition-point exceptions while runtime wiring stays in
-# rates_provider infrastructure. Any new exceptions should be treated as a regression.
-RATES_TO_USERS_INFRA_ALLOWLIST = {
-    "src/rates_provider/infrastructure/repository_factory.py",
-    "src/rates_provider/infrastructure/telegram_bot/__init__.py",
-}
+MODULES = [
+    "identity",
+    "market_rates",
+    "user_rates",
+    "quote_engine",
+    "quote_history",
+]
 
 
 def _iter_python_files(root: Path) -> list[Path]:
@@ -70,20 +70,70 @@ def _collect_forbidden_imports(
     return violations
 
 
-def test_users_service_infrastructure_does_not_import_rates_provider_infrastructure() -> None:
-    """Users service infrastructure should not depend on rates provider infrastructure."""
-    violations = _collect_forbidden_imports(
-        USERS_INFRA_PATH,
-        "rates_provider.infrastructure",
-    )
-    assert violations == []
+def test_module_domain_does_not_import_other_module_internals() -> None:
+    """Each module's domain layer must not import another module's domain,
+    application, or infrastructure.
+    """
+    violations: list[str] = []
+    for module in MODULES:
+        domain_path = SRC_ROOT / "modules" / module / "domain"
+        if not domain_path.exists():
+            continue
+        for other_module in MODULES:
+            if other_module == module:
+                continue
+            for layer in ("domain", "application", "infrastructure"):
+                prefix = f"modules.{other_module}.{layer}"
+                violations.extend(
+                    _collect_forbidden_imports(domain_path, prefix))
+    assert violations == [], "\n".join(violations)
 
 
-def test_rates_provider_infrastructure_does_not_import_users_service_infrastructure() -> None:
-    """Rates provider infrastructure should avoid users service infrastructure imports."""
-    violations = _collect_forbidden_imports(
-        RATES_INFRA_PATH,
-        "users_service.infrastructure",
-        allowlist=RATES_TO_USERS_INFRA_ALLOWLIST,
+def test_module_application_does_not_import_other_module_non_contracts() -> None:
+    """Each module's application layer may only import another module's contracts layer."""
+    violations: list[str] = []
+    for module in MODULES:
+        app_path = SRC_ROOT / "modules" / module / "application"
+        if not app_path.exists():
+            continue
+        for other_module in MODULES:
+            if other_module == module:
+                continue
+            for layer in ("domain", "application", "infrastructure"):
+                prefix = f"modules.{other_module}.{layer}"
+                violations.extend(_collect_forbidden_imports(app_path, prefix))
+    assert violations == [], "\n".join(violations)
+
+
+def test_interfaces_telegram_bot_does_not_import_module_infrastructure() -> None:
+    """Telegram interface must not directly import module infrastructure
+    (except identity telegram middleware).
+    """
+    telegram_path = SRC_ROOT / "interfaces" / "telegram_bot"
+    if not telegram_path.exists():
+        return
+    violations: list[str] = []
+    allowlist = {
+        # bootstrap __init__ is the sole wiring point
+        "src/interfaces/telegram_bot/__init__.py",
+    }
+    for module in MODULES:
+        prefix = f"modules.{module}.infrastructure"
+        violations.extend(
+            _collect_forbidden_imports(
+                telegram_path, prefix, allowlist=allowlist)
+        )
+    assert violations == [], "\n".join(violations)
+
+
+def test_app_bootstrap_is_sole_cross_module_composition_root() -> None:
+    """Module internals must not import bootstrap wiring
+    (composition only at interface/bootstrap level).
+    """
+    modules_path = SRC_ROOT / "modules"
+    assert modules_path.exists(), (
+        f"Expected modules directory to exist for architecture checks: {modules_path}"
     )
-    assert violations == []
+    violations = _collect_forbidden_imports(
+        modules_path, "app.bootstrap.wiring")
+    assert violations == [], "\n".join(violations)

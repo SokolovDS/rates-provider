@@ -5,7 +5,7 @@
             "name": "Python: Telegram Bot",
             "type": "debugpy",
             "request": "launch",
-            "module": "rates_provider",
+            "module": "app.bootstrap.entrypoint",
             "envFile": "${workspaceFolder}/.env"
         },
         {

@@ -1,1 +1,0 @@
-"""Rates provider application package."""
