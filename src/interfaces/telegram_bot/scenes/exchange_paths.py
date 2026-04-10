@@ -293,8 +293,7 @@ class ReceivedAmountTargetScene(BaseTelegramScene, state="exchange_paths:receive
 class ReceivedAmountValueScene(BaseTelegramScene, state="exchange_paths:received_value"):
     """Step 3 scene that asks source amount and computes target results."""
 
-    _PROMPT_TEXT: ClassVar[
-        str] = "Шаг 3/3. Введи сумму исходной валюты (например 100 или 100.50)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 3/3. Введи сумму исходной валюты (например 100 или 100.50)."
 
     async def _create_base_lines(self) -> list[str]:
         """Create amount prompt text with source and target context."""

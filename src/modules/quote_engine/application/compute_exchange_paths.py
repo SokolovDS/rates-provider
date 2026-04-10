@@ -75,7 +75,12 @@ async def _prepare_sorted_paths(
         raise NoExchangePathError(message)
 
     sorted_paths = tuple(
-        sorted(paths, key=lambda p: p.effective_rate, reverse=True))
+        sorted(
+            paths,
+            key=lambda p: p.effective_rate,
+            reverse=True,
+        )
+    )
     return source, target, sorted_paths
 
 

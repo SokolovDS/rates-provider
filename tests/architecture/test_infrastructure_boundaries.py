@@ -8,8 +8,13 @@ from pathlib import Path
 WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = WORKSPACE_ROOT / "src"
 
-MODULES = ["identity", "market_rates",
-           "user_rates", "quote_engine", "quote_history"]
+MODULES = [
+    "identity",
+    "market_rates",
+    "user_rates",
+    "quote_engine",
+    "quote_history",
+]
 
 
 def _iter_python_files(root: Path) -> list[Path]:
@@ -126,8 +131,9 @@ def test_app_bootstrap_is_sole_cross_module_composition_root() -> None:
     (composition only at interface/bootstrap level).
     """
     modules_path = SRC_ROOT / "modules"
-    if not modules_path.exists():
-        return
+    assert modules_path.exists(), (
+        f"Expected modules directory to exist for architecture checks: {modules_path}"
+    )
     violations = _collect_forbidden_imports(
         modules_path, "app.bootstrap.wiring")
     assert violations == [], "\n".join(violations)
