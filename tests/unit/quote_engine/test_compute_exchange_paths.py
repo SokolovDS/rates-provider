@@ -7,6 +7,8 @@ from decimal import Decimal
 
 import pytest
 
+from modules.market_rates.contracts.dtos import MarketRateEntry
+from modules.market_rates.contracts.reader_port import MarketRatesReaderPort
 from modules.quote_engine.application.compute_exchange_paths import (
     ComputeExchangePathsUseCase,
     ComputeReceivedAmountUseCase,
@@ -38,6 +40,27 @@ class PreloadedUserRatesReader(UserRatesReaderPort):
         return self._rates_by_user.get(user_id, tuple())
 
 
+class PreloadedMarketRatesReader(MarketRatesReaderPort):
+    """Reader test double returning predefined market rate entries."""
+
+    def __init__(self, rates: Sequence[MarketRateEntry] = ()) -> None:
+        """Initialize reader with a fixed set of market rate entries."""
+        self._rates = tuple(rates)
+
+    async def list_rates(self) -> Sequence[MarketRateEntry]:
+        """Return all predefined market rates."""
+        return self._rates
+
+
+def _market_entry(source: str, target: str, value: str) -> MarketRateEntry:
+    """Build deterministic market rate entry for test scenarios."""
+    return MarketRateEntry(
+        source_currency=source,
+        target_currency=target,
+        rate_value=Decimal(value),
+    )
+
+
 def _rate_entry(source: str, target: str, value: str) -> RateEntry:
     """Build deterministic rate entry for test scenarios."""
     return RateEntry(
@@ -62,7 +85,7 @@ def test_compute_exchange_paths_returns_all_routes_sorted_best_to_worst() -> Non
             ]
         }
     )
-    use_case = ComputeExchangePathsUseCase(reader)
+    use_case = ComputeExchangePathsUseCase(reader, PreloadedMarketRatesReader())
 
     result = asyncio.run(
         use_case.execute(
@@ -94,7 +117,7 @@ def test_compute_exchange_paths_returns_all_routes_sorted_best_to_worst() -> Non
 def test_compute_exchange_paths_rejects_identical_source_and_target() -> None:
     """Use case should reject path lookup when currencies are identical."""
     reader = PreloadedUserRatesReader({"user-1": []})
-    use_case = ComputeExchangePathsUseCase(reader)
+    use_case = ComputeExchangePathsUseCase(reader, PreloadedMarketRatesReader())
 
     with pytest.raises(IdenticalCurrencyPairError, match="must differ"):
         asyncio.run(
@@ -111,7 +134,7 @@ def test_compute_exchange_paths_rejects_identical_source_and_target() -> None:
 def test_compute_exchange_paths_rejects_blank_user_id() -> None:
     """Use case should reject blank user identifiers."""
     reader = PreloadedUserRatesReader({"user-1": []})
-    use_case = ComputeExchangePathsUseCase(reader)
+    use_case = ComputeExchangePathsUseCase(reader, PreloadedMarketRatesReader())
 
     with pytest.raises(ValueError, match="must not be empty"):
         asyncio.run(
@@ -133,7 +156,7 @@ def test_compute_exchange_paths_isolated_per_user_scope() -> None:
             "user-2": [_rate_entry("USD", "THB", "20")],
         }
     )
-    use_case = ComputeExchangePathsUseCase(reader)
+    use_case = ComputeExchangePathsUseCase(reader, PreloadedMarketRatesReader())
 
     with pytest.raises(NoExchangePathError, match="No exchange path"):
         asyncio.run(
@@ -160,7 +183,7 @@ def test_compute_exchange_paths_limits_maximum_exchanges_to_four() -> None:
             ]
         }
     )
-    use_case = ComputeExchangePathsUseCase(reader)
+    use_case = ComputeExchangePathsUseCase(reader, PreloadedMarketRatesReader())
 
     with pytest.raises(NoExchangePathError, match="No exchange path"):
         asyncio.run(
@@ -186,7 +209,7 @@ def test_compute_exchange_paths_excludes_cyclic_routes() -> None:
             ]
         }
     )
-    use_case = ComputeExchangePathsUseCase(reader)
+    use_case = ComputeExchangePathsUseCase(reader, PreloadedMarketRatesReader())
 
     result = asyncio.run(
         use_case.execute(
@@ -216,7 +239,7 @@ def test_compute_received_amount_returns_all_routes_sorted_best_to_worst() -> No
             ]
         }
     )
-    use_case = ComputeReceivedAmountUseCase(reader)
+    use_case = ComputeReceivedAmountUseCase(reader, PreloadedMarketRatesReader())
 
     result = asyncio.run(
         use_case.execute(
@@ -254,7 +277,7 @@ def test_compute_required_source_amount_returns_all_routes_sorted_best_to_worst(
             ]
         }
     )
-    use_case = ComputeRequiredSourceAmountUseCase(reader)
+    use_case = ComputeRequiredSourceAmountUseCase(reader, PreloadedMarketRatesReader())
 
     result = asyncio.run(
         use_case.execute(
@@ -281,7 +304,7 @@ def test_compute_required_source_amount_returns_all_routes_sorted_best_to_worst(
 def test_compute_received_amount_rejects_non_positive_amount() -> None:
     """Received-amount scenario should reject non-positive source amount."""
     reader = PreloadedUserRatesReader({"user-1": []})
-    use_case = ComputeReceivedAmountUseCase(reader)
+    use_case = ComputeReceivedAmountUseCase(reader, PreloadedMarketRatesReader())
 
     with pytest.raises(NonPositiveAmountError, match="positive"):
         asyncio.run(
@@ -299,7 +322,7 @@ def test_compute_received_amount_rejects_non_positive_amount() -> None:
 def test_compute_required_source_amount_rejects_non_positive_amount() -> None:
     """Required-source scenario should reject non-positive target amount."""
     reader = PreloadedUserRatesReader({"user-1": []})
-    use_case = ComputeRequiredSourceAmountUseCase(reader)
+    use_case = ComputeRequiredSourceAmountUseCase(reader, PreloadedMarketRatesReader())
 
     with pytest.raises(NonPositiveAmountError, match="positive"):
         asyncio.run(

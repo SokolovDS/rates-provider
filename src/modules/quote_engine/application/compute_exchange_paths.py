@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.shared._validation import normalize_currency_code, normalize_user_id
+from modules.market_rates.contracts.dtos import MarketRateEntry
+from modules.market_rates.contracts.reader_port import MarketRatesReaderPort
 from modules.quote_engine.application.dtos import (
     ComputeExchangePathsCommand,
     ComputeExchangePathsResult,
@@ -33,6 +35,15 @@ def _rate_entry_to_edge(entry: RateEntry) -> ExchangeEdge:
     )
 
 
+def _market_entry_to_edge(entry: MarketRateEntry) -> ExchangeEdge:
+    """Map a public MarketRateEntry DTO to an internal ExchangeEdge."""
+    return ExchangeEdge(
+        source_currency=entry.source_currency,
+        target_currency=entry.target_currency,
+        rate_value=entry.rate_value,
+    )
+
+
 def _compute_deviation_percent(route_rate: Decimal, best_rate: Decimal) -> Decimal:
     """Compute signed deviation percent from best route rate."""
     return (route_rate - best_rate) / best_rate * Decimal("100")
@@ -47,13 +58,16 @@ def _normalize_positive_amount(amount: Decimal) -> Decimal:
 
 
 async def _prepare_sorted_paths(
-    reader: UserRatesReaderPort,
+    user_reader: UserRatesReaderPort,
+    market_reader: MarketRatesReaderPort,
     user_id: str,
     source_currency: str,
     target_currency: str,
 ) -> tuple[str, str, tuple[DiscoveredPath, ...]]:
     """Validate inputs, discover paths, and return (source, target, sorted_paths).
 
+    Merges user-managed rates and market rates into a single graph.
+    ExchangeGraph.build keeps the best rate per directional pair.
     Paths are sorted by effective_rate descending (best first).
     Raises IdenticalCurrencyPairError, NoExchangePathError, or ValueError on invalid input.
     """
@@ -65,8 +79,14 @@ async def _prepare_sorted_paths(
         message = "Exchange-route currencies must differ."
         raise IdenticalCurrencyPairError(message)
 
-    rate_entries = await reader.list_rates(normalized_user_id)
-    edges = [_rate_entry_to_edge(entry) for entry in rate_entries]
+    user_entries, market_entries = (
+        await user_reader.list_rates(normalized_user_id),
+        await market_reader.list_rates(),
+    )
+    edges = [
+        *(_rate_entry_to_edge(e) for e in user_entries),
+        *(_market_entry_to_edge(e) for e in market_entries),
+    ]
     graph = ExchangeGraph.build(edges)
     paths = graph.find_paths(source, target, MAX_EXCHANGES_PER_PATH)
 
@@ -87,17 +107,21 @@ async def _prepare_sorted_paths(
 class ComputeExchangePathsUseCase:
     """Build all valid exchange paths and rank them by effective rate."""
 
-    def __init__(self, reader: UserRatesReaderPort) -> None:
-        """Initialize use case with a user-rates reader port."""
+    def __init__(
+        self, reader: UserRatesReaderPort, market_reader: MarketRatesReaderPort
+    ) -> None:
+        """Initialize use case with user-rates and market-rates reader ports."""
         self._reader = reader
+        self._market_reader = market_reader
 
     async def execute(
         self,
         command: ComputeExchangePathsCommand,
     ) -> ComputeExchangePathsResult:
-        """Compute ranked routes for user-scoped exchange rates."""
+        """Compute ranked routes merging user and market exchange rates."""
         source, target, sorted_paths = await _prepare_sorted_paths(
             self._reader,
+            self._market_reader,
             command.user_id,
             command.source_currency,
             command.target_currency,
@@ -123,9 +147,12 @@ class ComputeExchangePathsUseCase:
 class ComputeReceivedAmountUseCase:
     """Compute target amounts for all valid routes given source amount."""
 
-    def __init__(self, reader: UserRatesReaderPort) -> None:
-        """Initialize use case with a user-rates reader port."""
+    def __init__(
+        self, reader: UserRatesReaderPort, market_reader: MarketRatesReaderPort
+    ) -> None:
+        """Initialize use case with user-rates and market-rates reader ports."""
         self._reader = reader
+        self._market_reader = market_reader
 
     async def execute(
         self,
@@ -135,6 +162,7 @@ class ComputeReceivedAmountUseCase:
         source_amount = _normalize_positive_amount(command.source_amount)
         source, target, sorted_paths = await _prepare_sorted_paths(
             self._reader,
+            self._market_reader,
             command.user_id,
             command.source_currency,
             command.target_currency,
@@ -163,9 +191,12 @@ class ComputeReceivedAmountUseCase:
 class ComputeRequiredSourceAmountUseCase:
     """Compute source amounts needed for all valid routes given target amount."""
 
-    def __init__(self, reader: UserRatesReaderPort) -> None:
-        """Initialize use case with a user-rates reader port."""
+    def __init__(
+        self, reader: UserRatesReaderPort, market_reader: MarketRatesReaderPort
+    ) -> None:
+        """Initialize use case with user-rates and market-rates reader ports."""
         self._reader = reader
+        self._market_reader = market_reader
 
     async def execute(
         self,
@@ -175,6 +206,7 @@ class ComputeRequiredSourceAmountUseCase:
         target_amount = _normalize_positive_amount(command.target_amount)
         source, target, sorted_paths = await _prepare_sorted_paths(
             self._reader,
+            self._market_reader,
             command.user_id,
             command.source_currency,
             command.target_currency,

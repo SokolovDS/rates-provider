@@ -10,6 +10,7 @@ from ..callbacks.navigation import (
     RatesMenuCalculateRequiredCallback,
     RatesMenuFindPathsCallback,
     RatesMenuListCallback,
+    RatesMenuMarketRatesCallback,
 )
 from .base import BaseTelegramScene
 from .exchange_paths import (
@@ -17,6 +18,7 @@ from .exchange_paths import (
     ReceivedAmountSourceScene,
     RequiredAmountSourceScene,
 )
+from .market_rates import ListMarketRatesScene
 from .my_rates.list_rates import ListRatesScene
 
 
@@ -27,6 +29,10 @@ class RatesMenuScene(BaseTelegramScene, state="rates_menu"):
     _BUTTONS: ClassVar[list[InlineKeyboardButton]] = [
         InlineKeyboardButton(
             text="Мои курсы", callback_data=RatesMenuListCallback().pack()),
+        InlineKeyboardButton(
+            text="Рыночные курсы",
+            callback_data=RatesMenuMarketRatesCallback().pack(),
+        ),
         InlineKeyboardButton(
             text="Найти выгодный маршрут обмена",
             callback_data=RatesMenuFindPathsCallback().pack(),
@@ -49,6 +55,15 @@ class RatesMenuScene(BaseTelegramScene, state="rates_menu"):
         """Transition from rates submenu to stored-rates list scene."""
         await callback_query.answer()
         await self.wizard.goto(ListRatesScene)
+
+    @on.callback_query(RatesMenuMarketRatesCallback.filter())
+    async def on_market_rates_click(
+        self,
+        callback_query: CallbackQuery,
+    ) -> None:
+        """Transition from rates submenu to market rates list scene."""
+        await callback_query.answer()
+        await self.wizard.goto(ListMarketRatesScene)
 
     @on.callback_query(RatesMenuFindPathsCallback.filter())
     async def on_find_paths_click(

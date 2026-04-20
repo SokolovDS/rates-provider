@@ -1,1 +1,1 @@
-"""market_rates application layer — scaffold stub, not yet implemented."""
+"""Application layer for the market_rates module."""

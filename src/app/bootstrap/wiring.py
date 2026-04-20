@@ -8,6 +8,10 @@ from app.bootstrap.config import (
 from modules.identity.domain.repositories import UserRepository
 from modules.identity.infrastructure.memory_user_repository import InMemoryUserRepository
 from modules.identity.infrastructure.sqlite_user_repository import SQLiteUserRepository
+from modules.market_rates.contracts.reader_port import MarketRatesReaderPort
+from modules.market_rates.infrastructure.in_memory_market_rates_reader import (
+    InMemoryMarketRatesReader,
+)
 from modules.user_rates.domain.repositories import ExchangeRateRepository
 from modules.user_rates.infrastructure.memory_exchange_rate_repository import (
     InMemoryExchangeRateRepository,
@@ -35,3 +39,8 @@ def build_user_repository() -> UserRepository:
 
     sqlite_db_path = load_users_sqlite_db_path()
     return SQLiteUserRepository(sqlite_db_path)
+
+
+def build_market_rates_reader() -> MarketRatesReaderPort:
+    """Build market rates reader (currently always in-memory mock)."""
+    return InMemoryMarketRatesReader()

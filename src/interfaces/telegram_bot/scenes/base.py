@@ -165,7 +165,6 @@ class BaseTelegramScene(Scene):
         ui_message = await message.answer(text, reply_markup=reply_markup)
         await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: ui_message.message_id})
 
-
     @on.callback_query(BackNavigationCallback.filter())
     async def on_back_click(
         self,
@@ -195,7 +194,21 @@ class BaseTelegramScene(Scene):
         if not isinstance(message, Message):
             return
         text, reply_markup = await self._payload_for_enter(**kwargs)
-        await message.edit_text(text, reply_markup=reply_markup)
+        try:
+            await message.edit_text(text, reply_markup=reply_markup)
+        except TelegramBadRequest as error:
+            if "message is not modified" not in str(error).lower():
+                new_msg = await message.answer(text, reply_markup=reply_markup)
+                await self.wizard.update_data(
+                    {self._UI_MESSAGE_ID_KEY: new_msg.message_id}
+                )
+            return
+        except TelegramAPIError:
+            new_msg = await message.answer(text, reply_markup=reply_markup)
+            await self.wizard.update_data(
+                {self._UI_MESSAGE_ID_KEY: new_msg.message_id}
+            )
+            return
         await self.wizard.update_data({self._UI_MESSAGE_ID_KEY: message.message_id})
 
     @staticmethod

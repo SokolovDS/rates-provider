@@ -37,3 +37,9 @@ class RatesMenuCalculateRequiredCallback(CallbackData, prefix="rates_menu_requir
     """Payload contract for required amount calculation flow."""
 
     pass
+
+
+class RatesMenuMarketRatesCallback(CallbackData, prefix="rates_menu_market"):
+    """Payload contract for navigating to the market rates list."""
+
+    pass
