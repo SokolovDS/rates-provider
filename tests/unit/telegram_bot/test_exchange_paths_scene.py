@@ -2,7 +2,15 @@
 
 from decimal import Decimal
 
+import pytest
+
+from interfaces.telegram_bot.callbacks.exchange_paths import (
+    ExchangePathSourceCurrencyCallback,
+    ExchangePathTargetCurrencyCallback,
+)
 from interfaces.telegram_bot.scenes.exchange_paths import (
+    build_currency_keyboard_rows,
+    build_currency_selection_lines,
     build_exchange_paths_lines,
     build_received_amount_lines,
     build_required_source_amount_lines,
@@ -38,6 +46,80 @@ def test_format_deviation_percent_shows_signed_percent() -> None:
     assert format_deviation_percent(Decimal("0")) == "0%"
     assert format_deviation_percent(Decimal("-12.5")) == "-12.50%"
     assert format_deviation_percent(Decimal("-12.555")) == "-12.56%"
+
+
+def test_build_currency_selection_lines_renders_prompt_when_choices_exist() -> None:
+    """Selection helper should show prompt text when button choices are available."""
+    assert build_currency_selection_lines(
+        header_lines=["Поиск маршрутов обмена"],
+        prompt_text="Шаг 1/2. Выбери исходную валюту.",
+        empty_text="Нет доступных валют.",
+        has_choices=True,
+    ) == [
+        "Поиск маршрутов обмена",
+        "",
+        "Шаг 1/2. Выбери исходную валюту.",
+    ]
+
+
+def test_build_currency_selection_lines_renders_empty_state_without_choices() -> None:
+    """Selection helper should replace prompt with empty-state text when needed."""
+    assert build_currency_selection_lines(
+        header_lines=["Поиск маршрутов обмена", "Исходная валюта: RUB"],
+        prompt_text="Шаг 2/2. Выбери целевую валюту.",
+        empty_text="Нет доступных целевых валют для выбранной исходной.",
+        has_choices=False,
+    ) == [
+        "Поиск маршрутов обмена",
+        "Исходная валюта: RUB",
+        "",
+        "Нет доступных целевых валют для выбранной исходной.",
+    ]
+
+
+def test_build_currency_keyboard_rows_creates_single_button_per_currency() -> None:
+    """Currency helper should render one callback button per available currency."""
+    rows = build_currency_keyboard_rows(
+        ("RUB", "THB"),
+        lambda currency: ExchangePathSourceCurrencyCallback(
+            currency=currency).pack(),
+    )
+
+    assert rows[0][0].text == "RUB"
+    assert rows[0][0].callback_data == ExchangePathSourceCurrencyCallback(
+        currency="RUB"
+    ).pack()
+    assert rows[1][0].text == "THB"
+    assert rows[1][0].callback_data == ExchangePathSourceCurrencyCallback(
+        currency="THB"
+    ).pack()
+
+
+def test_exchange_path_source_currency_callback_roundtrip() -> None:
+    """Source-currency callback should encode and decode the selected currency."""
+    callback_data = ExchangePathSourceCurrencyCallback(currency="RUB").pack()
+
+    unpacked = ExchangePathSourceCurrencyCallback.unpack(callback_data)
+
+    assert unpacked.currency == "RUB"
+
+
+def test_exchange_path_target_currency_callback_roundtrip() -> None:
+    """Target-currency callback should encode and decode the selected currency."""
+    callback_data = ExchangePathTargetCurrencyCallback(currency="USD").pack()
+
+    unpacked = ExchangePathTargetCurrencyCallback.unpack(callback_data)
+
+    assert unpacked.currency == "USD"
+
+
+def test_exchange_path_currency_callback_parser_rejects_invalid_payload() -> None:
+    """Currency callback parser should reject malformed or foreign payloads."""
+    with pytest.raises(TypeError):
+        ExchangePathSourceCurrencyCallback.unpack("paths_source")
+
+    with pytest.raises(ValueError):
+        ExchangePathTargetCurrencyCallback.unpack("unknown:USD")
 
 
 def test_build_exchange_paths_lines_returns_empty_state() -> None:

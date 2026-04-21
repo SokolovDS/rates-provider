@@ -5,8 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from app.shared._validation import normalize_currency_code, normalize_user_id
-from modules.market_rates.contracts.dtos import MarketRateEntry
 from modules.market_rates.contracts.reader_port import MarketRatesReaderPort
+from modules.quote_engine.application._merged_graph import build_merged_exchange_graph
 from modules.quote_engine.application.dtos import (
     ComputeExchangePathsCommand,
     ComputeExchangePathsResult,
@@ -19,29 +19,9 @@ from modules.quote_engine.application.dtos import (
     RequiredSourceAmountItem,
 )
 from modules.quote_engine.domain.exceptions import NoExchangePathError, NonPositiveAmountError
-from modules.quote_engine.domain.exchange_edge import ExchangeEdge
-from modules.quote_engine.domain.graph import MAX_EXCHANGES_PER_PATH, DiscoveredPath, ExchangeGraph
-from modules.user_rates.contracts.dtos import RateEntry
+from modules.quote_engine.domain.graph import MAX_EXCHANGES_PER_PATH, DiscoveredPath
 from modules.user_rates.contracts.exceptions import IdenticalCurrencyPairError
 from modules.user_rates.contracts.reader_port import UserRatesReaderPort
-
-
-def _rate_entry_to_edge(entry: RateEntry) -> ExchangeEdge:
-    """Map a public RateEntry DTO to an internal ExchangeEdge."""
-    return ExchangeEdge(
-        source_currency=entry.source_currency,
-        target_currency=entry.target_currency,
-        rate_value=entry.rate_value,
-    )
-
-
-def _market_entry_to_edge(entry: MarketRateEntry) -> ExchangeEdge:
-    """Map a public MarketRateEntry DTO to an internal ExchangeEdge."""
-    return ExchangeEdge(
-        source_currency=entry.source_currency,
-        target_currency=entry.target_currency,
-        rate_value=entry.rate_value,
-    )
 
 
 def _compute_deviation_percent(route_rate: Decimal, best_rate: Decimal) -> Decimal:
@@ -79,15 +59,12 @@ async def _prepare_sorted_paths(
         message = "Exchange-route currencies must differ."
         raise IdenticalCurrencyPairError(message)
 
-    user_entries, market_entries = (
-        await user_reader.list_rates(normalized_user_id),
-        await market_reader.list_rates(),
+    merged_graph = await build_merged_exchange_graph(
+        user_reader,
+        market_reader,
+        normalized_user_id,
     )
-    edges = [
-        *(_rate_entry_to_edge(e) for e in user_entries),
-        *(_market_entry_to_edge(e) for e in market_entries),
-    ]
-    graph = ExchangeGraph.build(edges)
+    graph = merged_graph.graph
     paths = graph.find_paths(source, target, MAX_EXCHANGES_PER_PATH)
 
     if not paths:

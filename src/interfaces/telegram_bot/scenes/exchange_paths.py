@@ -1,14 +1,21 @@
 """Scenes for searching profitable exchange routes in Telegram bot UI."""
 
+from collections.abc import Callable, Sequence
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import ClassVar, cast
+from typing import Any, ClassVar, cast
 
 from aiogram.fsm.scene import on
-from aiogram.types import CallbackQuery, InlineKeyboardButton, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Message,
+)
 
-from app.shared._validation import normalize_currency_code
 from interfaces.telegram_bot.callbacks.exchange_paths import (
+    ExchangePathSourceCurrencyCallback,
     ExchangePathsResultCallback,
+    ExchangePathTargetCurrencyCallback,
 )
 from modules.identity.domain.user import User as InternalUser
 from modules.quote_engine.application.compute_exchange_paths import (
@@ -23,6 +30,10 @@ from modules.quote_engine.application.dtos import (
     ComputeReceivedAmountResult,
     ComputeRequiredSourceAmountCommand,
     ComputeRequiredSourceAmountResult,
+)
+from modules.quote_engine.application.list_selectable_currencies import (
+    ListSelectableCurrenciesCommand,
+    ListSelectableCurrenciesUseCase,
 )
 from modules.quote_engine.domain.exceptions import (
     NoExchangePathError,
@@ -68,6 +79,47 @@ def format_deviation_percent(deviation_percent: Decimal) -> str:
     if formatted in {"", "-0", "+0"}:
         return "0%"
     return f"{formatted}%"
+
+
+def build_currency_selection_lines(
+    header_lines: list[str],
+    prompt_text: str,
+    empty_text: str,
+    has_choices: bool,
+    error_text: str | None = None,
+) -> list[str]:
+    """Build user-facing lines for a currency selection step."""
+    body_text = prompt_text if has_choices else empty_text
+    lines = [*header_lines, "", body_text]
+    if error_text is not None:
+        lines.extend(["", error_text])
+    return lines
+
+
+def build_currency_keyboard_rows(
+    currencies: Sequence[str],
+    callback_data_builder: Callable[[str], str],
+) -> list[list[InlineKeyboardButton]]:
+    """Build one inline button row per selectable currency."""
+    return [
+        [
+            InlineKeyboardButton(
+                text=currency,
+                callback_data=callback_data_builder(currency),
+            )
+        ]
+        for currency in currencies
+    ]
+
+
+def _build_source_currency_callback_data(currency: str) -> str:
+    """Build callback payload for selecting a source currency."""
+    return ExchangePathSourceCurrencyCallback(currency=currency).pack()
+
+
+def _build_target_currency_callback_data(currency: str) -> str:
+    """Build callback payload for selecting a target currency."""
+    return ExchangePathTargetCurrencyCallback(currency=currency).pack()
 
 
 def build_exchange_paths_lines(result: ComputeExchangePathsResult) -> list[str]:
@@ -159,10 +211,12 @@ class _ExchangeResultScene(BaseTelegramScene):
         """Read precomputed result lines from scene data."""
         data = await self.wizard.get_data()
         raw_lines = data.get(RESULT_LINES_KEY)
-        if isinstance(raw_lines, list) and all(
-            isinstance(line, str) for line in raw_lines
-        ):
-            return cast(list[str], list(raw_lines))
+        if isinstance(raw_lines, list):
+            object_lines = cast(list[object], raw_lines)
+            typed_lines = [
+                line for line in object_lines if isinstance(line, str)]
+            if len(typed_lines) == len(object_lines):
+                return typed_lines
         return ["Результат", "", "Не удалось отобразить результат."]
 
     @on.callback_query(ExchangePathsResultCallback.filter())
@@ -175,63 +229,161 @@ class _ExchangeResultScene(BaseTelegramScene):
         await self.collapse_to("rates_menu", fresh_ui_message=True)
 
 
-class ExchangePathSourceScene(BaseTelegramScene, state="exchange_paths:source"):
+class _CurrencySelectionScene(BaseTelegramScene):
+    """Base scene for rendering currency selection keyboards with shared layout."""
+
+    async def _selection_payload(
+        self,
+        *,
+        header_lines: list[str],
+        prompt_text: str,
+        empty_text: str,
+        currencies: Sequence[str],
+        callback_data_builder: Callable[[str], str],
+        error_text: str | None = None,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build text and inline keyboard payload for a currency selection step."""
+        text_lines = build_currency_selection_lines(
+            header_lines=header_lines,
+            prompt_text=prompt_text,
+            empty_text=empty_text,
+            has_choices=bool(currencies),
+            error_text=error_text,
+        )
+        rows = build_currency_keyboard_rows(currencies, callback_data_builder)
+        markup = await self._build_markup(rows)
+        return "\n".join(text_lines), markup
+
+
+class ExchangePathSourceScene(_CurrencySelectionScene, state="exchange_paths:source"):
     """Step 1 scene that asks source currency for path lookup."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 1/2. Введи исходную валюту (например RUB)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 1/2. Выбери исходную валюту."
+    _EMPTY_TEXT: ClassVar[str] = "Нет доступных валют для поиска маршрутов."
 
     async def _create_base_lines(self) -> list[str]:
-        """Create source-currency prompt text lines."""
-        return ["Поиск маршрутов обмена", "", self._PROMPT_TEXT]
+        """Create source-currency header lines."""
+        return ["Поиск маршрутов обмена"]
 
-    @on.message()
-    @handle_exceptions(_path_error_message, DomainValidationError)
-    async def on_source_currency(self, message: Message) -> None:
-        """Validate source currency and move to target step."""
-        await self._best_effort_delete_user_message(message)
-        source_currency = normalize_currency_code(message.text or "")
+    async def _payload_for_enter(
+        self,
+        **kwargs: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build source-currency selection payload with available codes."""
+        list_selectable_currencies_use_case = cast(
+            ListSelectableCurrenciesUseCase,
+            kwargs["list_selectable_currencies_use_case"],
+        )
+        current_user = cast(InternalUser, kwargs["current_user"])
+        result = await list_selectable_currencies_use_case.execute(
+            ListSelectableCurrenciesCommand(user_id=current_user.user_id.value)
+        )
+        return await self._selection_payload(
+            header_lines=await self._create_base_lines(),
+            prompt_text=self._PROMPT_TEXT,
+            empty_text=self._EMPTY_TEXT,
+            currencies=result.currencies,
+            callback_data_builder=_build_source_currency_callback_data,
+        )
+
+    @on.callback_query(ExchangePathSourceCurrencyCallback.filter())
+    async def on_source_currency_click(
+        self,
+        callback_query: CallbackQuery,
+        callback_data: ExchangePathSourceCurrencyCallback,
+    ) -> None:
+        """Save selected source currency and move to target step."""
+        await callback_query.answer()
+        source_currency = callback_data.currency
         await self.wizard.update_data({SOURCE_CURRENCY_KEY: source_currency})
         await self.wizard.goto(ExchangePathTargetScene)
 
 
-class ExchangePathTargetScene(BaseTelegramScene, state="exchange_paths:target"):
+class ExchangePathTargetScene(_CurrencySelectionScene, state="exchange_paths:target"):
     """Step 2 scene that asks target currency and computes routes."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 2/2. Введи целевую валюту (например THB)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 2/2. Выбери целевую валюту."
+    _EMPTY_TEXT: ClassVar[str] = (
+        "Нет доступных целевых валют для выбранной исходной."
+    )
 
     async def _create_base_lines(self) -> list[str]:
-        """Create target-currency prompt text lines with source context."""
+        """Create target-currency header lines with source context."""
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
         return [
             "Поиск маршрутов обмена",
             f"Исходная валюта: {source_currency}",
-            "",
-            self._PROMPT_TEXT,
         ]
 
-    @on.message()
-    @handle_exceptions(_path_error_message, DomainValidationError)
-    async def on_target_currency(
+    async def _payload_for_enter(
         self,
-        message: Message,
-        compute_exchange_paths_use_case: ComputeExchangePathsUseCase,
-        current_user: InternalUser,
-    ) -> None:
-        """Compute routes for source/target pair and move to result screen."""
-        await self._best_effort_delete_user_message(message)
+        **kwargs: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build target-currency selection payload with reachable currencies."""
+        list_selectable_currencies_use_case = cast(
+            ListSelectableCurrenciesUseCase,
+            kwargs["list_selectable_currencies_use_case"],
+        )
+        current_user = cast(InternalUser, kwargs["current_user"])
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
-        target_currency = normalize_currency_code(message.text or "")
-        await self.wizard.update_data({TARGET_CURRENCY_KEY: target_currency})
-
-        result = await compute_exchange_paths_use_case.execute(
-            ComputeExchangePathsCommand(
+        result = await list_selectable_currencies_use_case.execute(
+            ListSelectableCurrenciesCommand(
                 user_id=current_user.user_id.value,
                 source_currency=source_currency,
-                target_currency=target_currency,
             )
         )
+        return await self._selection_payload(
+            header_lines=await self._create_base_lines(),
+            prompt_text=self._PROMPT_TEXT,
+            empty_text=self._EMPTY_TEXT,
+            currencies=result.currencies,
+            callback_data_builder=_build_target_currency_callback_data,
+        )
+
+    @on.callback_query(ExchangePathTargetCurrencyCallback.filter())
+    async def on_target_currency_click(
+        self,
+        callback_query: CallbackQuery,
+        callback_data: ExchangePathTargetCurrencyCallback,
+        compute_exchange_paths_use_case: ComputeExchangePathsUseCase,
+        list_selectable_currencies_use_case: ListSelectableCurrenciesUseCase,
+        current_user: InternalUser,
+    ) -> None:
+        """Compute routes for selected source/target pair and move to result screen."""
+        await callback_query.answer()
+        data = await self.wizard.get_data()
+        source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
+        target_currency = callback_data.currency
+        await self.wizard.update_data({TARGET_CURRENCY_KEY: target_currency})
+        try:
+            result = await compute_exchange_paths_use_case.execute(
+                ComputeExchangePathsCommand(
+                    user_id=current_user.user_id.value,
+                    source_currency=source_currency,
+                    target_currency=target_currency,
+                )
+            )
+        except (DomainValidationError, NoExchangePathError, InvalidCurrencyCodeError) as error:
+            selectable_result = await list_selectable_currencies_use_case.execute(
+                ListSelectableCurrenciesCommand(
+                    user_id=current_user.user_id.value,
+                    source_currency=source_currency,
+                )
+            )
+            message = callback_query.message
+            if isinstance(message, Message):
+                text, reply_markup = await self._selection_payload(
+                    header_lines=await self._create_base_lines(),
+                    prompt_text=self._PROMPT_TEXT,
+                    empty_text=self._EMPTY_TEXT,
+                    currencies=selectable_result.currencies,
+                    callback_data_builder=_build_target_currency_callback_data,
+                    error_text=_path_error_message(error),
+                )
+                await message.edit_text(text, reply_markup=reply_markup)
+            return
         await self.wizard.update_data({RESULT_LINES_KEY: build_exchange_paths_lines(result)})
         await self.wizard.goto(ExchangePathResultScene)
 
@@ -240,52 +392,102 @@ class ExchangePathResultScene(_ExchangeResultScene, state="exchange_paths:result
     """Result screen for exchange path discovery."""
 
 
-class ReceivedAmountSourceScene(BaseTelegramScene, state="exchange_paths:received_source"):
+class ReceivedAmountSourceScene(_CurrencySelectionScene, state="exchange_paths:received_source"):
     """Step 1 scene that asks source currency for received-amount calculation."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Введи исходную валюту (например RUB)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Выбери исходную валюту."
+    _EMPTY_TEXT: ClassVar[str] = "Нет доступных валют для расчёта суммы."
 
     async def _create_base_lines(self) -> list[str]:
-        """Create prompt text for received-amount source input."""
-        return ["Сколько получишь за сумму", "", self._PROMPT_TEXT]
+        """Create header lines for received-amount source selection."""
+        return ["Сколько получишь за сумму"]
 
-    @on.message()
-    @handle_exceptions(_path_error_message, DomainValidationError)
-    async def on_source_currency(self, message: Message) -> None:
-        """Validate source currency and move to target step."""
-        await self._best_effort_delete_user_message(message)
-        source_currency = normalize_currency_code(message.text or "")
+    async def _payload_for_enter(
+        self,
+        **kwargs: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build source-currency selection payload for received-amount flow."""
+        list_selectable_currencies_use_case = cast(
+            ListSelectableCurrenciesUseCase,
+            kwargs["list_selectable_currencies_use_case"],
+        )
+        current_user = cast(InternalUser, kwargs["current_user"])
+        result = await list_selectable_currencies_use_case.execute(
+            ListSelectableCurrenciesCommand(user_id=current_user.user_id.value)
+        )
+        return await self._selection_payload(
+            header_lines=await self._create_base_lines(),
+            prompt_text=self._PROMPT_TEXT,
+            empty_text=self._EMPTY_TEXT,
+            currencies=result.currencies,
+            callback_data_builder=_build_source_currency_callback_data,
+        )
+
+    @on.callback_query(ExchangePathSourceCurrencyCallback.filter())
+    async def on_source_currency_click(
+        self,
+        callback_query: CallbackQuery,
+        callback_data: ExchangePathSourceCurrencyCallback,
+    ) -> None:
+        """Save selected source currency and move to target step."""
+        await callback_query.answer()
+        source_currency = callback_data.currency
         await self.wizard.update_data({SOURCE_CURRENCY_KEY: source_currency})
         await self.wizard.goto(ReceivedAmountTargetScene)
 
 
-class ReceivedAmountTargetScene(BaseTelegramScene, state="exchange_paths:received_target"):
+class ReceivedAmountTargetScene(_CurrencySelectionScene, state="exchange_paths:received_target"):
     """Step 2 scene that asks target currency for received-amount calculation."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 2/3. Введи целевую валюту (например THB)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 2/3. Выбери целевую валюту."
+    _EMPTY_TEXT: ClassVar[str] = (
+        "Нет доступных целевых валют для выбранной исходной."
+    )
 
     async def _create_base_lines(self) -> list[str]:
-        """Create target-currency prompt text with source context."""
+        """Create target-currency header lines with source context."""
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
         return [
             "Сколько получишь за сумму",
             f"Исходная валюта: {source_currency}",
-            "",
-            self._PROMPT_TEXT,
         ]
 
-    @on.message()
-    @handle_exceptions(_path_error_message, DomainValidationError)
-    async def on_target_currency(self, message: Message) -> None:
-        """Validate target currency and move to amount step."""
-        await self._best_effort_delete_user_message(message)
-        target_currency = normalize_currency_code(message.text or "")
+    async def _payload_for_enter(
+        self,
+        **kwargs: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build target-currency selection payload for received-amount flow."""
+        list_selectable_currencies_use_case = cast(
+            ListSelectableCurrenciesUseCase,
+            kwargs["list_selectable_currencies_use_case"],
+        )
+        current_user = cast(InternalUser, kwargs["current_user"])
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
-        if target_currency == source_currency:
-            raise IdenticalCurrencyPairError(
-                "Exchange-route currencies must differ.")
+        result = await list_selectable_currencies_use_case.execute(
+            ListSelectableCurrenciesCommand(
+                user_id=current_user.user_id.value,
+                source_currency=source_currency,
+            )
+        )
+        return await self._selection_payload(
+            header_lines=await self._create_base_lines(),
+            prompt_text=self._PROMPT_TEXT,
+            empty_text=self._EMPTY_TEXT,
+            currencies=result.currencies,
+            callback_data_builder=_build_target_currency_callback_data,
+        )
+
+    @on.callback_query(ExchangePathTargetCurrencyCallback.filter())
+    async def on_target_currency_click(
+        self,
+        callback_query: CallbackQuery,
+        callback_data: ExchangePathTargetCurrencyCallback,
+    ) -> None:
+        """Save selected target currency and move to amount step."""
+        await callback_query.answer()
+        target_currency = callback_data.currency
         await self.wizard.update_data({TARGET_CURRENCY_KEY: target_currency})
         await self.wizard.goto(ReceivedAmountValueScene)
 
@@ -293,7 +495,8 @@ class ReceivedAmountTargetScene(BaseTelegramScene, state="exchange_paths:receive
 class ReceivedAmountValueScene(BaseTelegramScene, state="exchange_paths:received_value"):
     """Step 3 scene that asks source amount and computes target results."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 3/3. Введи сумму исходной валюты (например 100 или 100.50)."
+    _PROMPT_TEXT: ClassVar[
+        str] = "Шаг 3/3. Введи сумму исходной валюты (например 100 или 100.50)."
 
     async def _create_base_lines(self) -> list[str]:
         """Create amount prompt text with source and target context."""
@@ -338,52 +541,102 @@ class ReceivedAmountResultScene(_ExchangeResultScene, state="exchange_paths:rece
     """Result screen for received-amount calculation."""
 
 
-class RequiredAmountSourceScene(BaseTelegramScene, state="exchange_paths:required_source"):
+class RequiredAmountSourceScene(_CurrencySelectionScene, state="exchange_paths:required_source"):
     """Step 1 scene that asks source currency for required-source calculation."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Введи исходную валюту (например RUB)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 1/3. Выбери исходную валюту."
+    _EMPTY_TEXT: ClassVar[str] = "Нет доступных валют для расчёта исходной суммы."
 
     async def _create_base_lines(self) -> list[str]:
-        """Create prompt text for required-source source input."""
-        return ["Сколько нужно исходной валюты", "", self._PROMPT_TEXT]
+        """Create header lines for required-source source selection."""
+        return ["Сколько нужно исходной валюты"]
 
-    @on.message()
-    @handle_exceptions(_path_error_message, DomainValidationError)
-    async def on_source_currency(self, message: Message) -> None:
-        """Validate source currency and move to target step."""
-        await self._best_effort_delete_user_message(message)
-        source_currency = normalize_currency_code(message.text or "")
+    async def _payload_for_enter(
+        self,
+        **kwargs: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build source-currency selection payload for required-source flow."""
+        list_selectable_currencies_use_case = cast(
+            ListSelectableCurrenciesUseCase,
+            kwargs["list_selectable_currencies_use_case"],
+        )
+        current_user = cast(InternalUser, kwargs["current_user"])
+        result = await list_selectable_currencies_use_case.execute(
+            ListSelectableCurrenciesCommand(user_id=current_user.user_id.value)
+        )
+        return await self._selection_payload(
+            header_lines=await self._create_base_lines(),
+            prompt_text=self._PROMPT_TEXT,
+            empty_text=self._EMPTY_TEXT,
+            currencies=result.currencies,
+            callback_data_builder=_build_source_currency_callback_data,
+        )
+
+    @on.callback_query(ExchangePathSourceCurrencyCallback.filter())
+    async def on_source_currency_click(
+        self,
+        callback_query: CallbackQuery,
+        callback_data: ExchangePathSourceCurrencyCallback,
+    ) -> None:
+        """Save selected source currency and move to target step."""
+        await callback_query.answer()
+        source_currency = callback_data.currency
         await self.wizard.update_data({SOURCE_CURRENCY_KEY: source_currency})
         await self.wizard.goto(RequiredAmountTargetScene)
 
 
-class RequiredAmountTargetScene(BaseTelegramScene, state="exchange_paths:required_target"):
+class RequiredAmountTargetScene(_CurrencySelectionScene, state="exchange_paths:required_target"):
     """Step 2 scene that asks target currency for required-source calculation."""
 
-    _PROMPT_TEXT: ClassVar[str] = "Шаг 2/3. Введи целевую валюту (например THB)."
+    _PROMPT_TEXT: ClassVar[str] = "Шаг 2/3. Выбери целевую валюту."
+    _EMPTY_TEXT: ClassVar[str] = (
+        "Нет доступных целевых валют для выбранной исходной."
+    )
 
     async def _create_base_lines(self) -> list[str]:
-        """Create target-currency prompt text with source context."""
+        """Create target-currency header lines with source context."""
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, "-"))
         return [
             "Сколько нужно исходной валюты",
             f"Исходная валюта: {source_currency}",
-            "",
-            self._PROMPT_TEXT,
         ]
 
-    @on.message()
-    @handle_exceptions(_path_error_message, DomainValidationError)
-    async def on_target_currency(self, message: Message) -> None:
-        """Validate target currency and move to amount step."""
-        await self._best_effort_delete_user_message(message)
-        target_currency = normalize_currency_code(message.text or "")
+    async def _payload_for_enter(
+        self,
+        **kwargs: Any,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Build target-currency selection payload for required-source flow."""
+        list_selectable_currencies_use_case = cast(
+            ListSelectableCurrenciesUseCase,
+            kwargs["list_selectable_currencies_use_case"],
+        )
+        current_user = cast(InternalUser, kwargs["current_user"])
         data = await self.wizard.get_data()
         source_currency = str(data.get(SOURCE_CURRENCY_KEY, ""))
-        if target_currency == source_currency:
-            raise IdenticalCurrencyPairError(
-                "Exchange-route currencies must differ.")
+        result = await list_selectable_currencies_use_case.execute(
+            ListSelectableCurrenciesCommand(
+                user_id=current_user.user_id.value,
+                source_currency=source_currency,
+            )
+        )
+        return await self._selection_payload(
+            header_lines=await self._create_base_lines(),
+            prompt_text=self._PROMPT_TEXT,
+            empty_text=self._EMPTY_TEXT,
+            currencies=result.currencies,
+            callback_data_builder=_build_target_currency_callback_data,
+        )
+
+    @on.callback_query(ExchangePathTargetCurrencyCallback.filter())
+    async def on_target_currency_click(
+        self,
+        callback_query: CallbackQuery,
+        callback_data: ExchangePathTargetCurrencyCallback,
+    ) -> None:
+        """Save selected target currency and move to amount step."""
+        await callback_query.answer()
+        target_currency = callback_data.currency
         await self.wizard.update_data({TARGET_CURRENCY_KEY: target_currency})
         await self.wizard.goto(RequiredAmountValueScene)
 

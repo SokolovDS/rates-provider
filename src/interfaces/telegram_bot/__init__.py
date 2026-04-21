@@ -25,6 +25,9 @@ from modules.quote_engine.application.compute_exchange_paths import (
     ComputeReceivedAmountUseCase,
     ComputeRequiredSourceAmountUseCase,
 )
+from modules.quote_engine.application.list_selectable_currencies import (
+    ListSelectableCurrenciesUseCase,
+)
 from modules.user_rates.application.add_exchange_rate import AddExchangeRateUseCase
 from modules.user_rates.application.delete_exchange_rate import DeleteExchangeRateUseCase
 from modules.user_rates.application.list_exchange_rates import ListExchangeRatesUseCase
@@ -82,6 +85,10 @@ async def run_bot(token: str) -> None:
     list_market_rates_use_case = ListMarketRatesUseCase(market_reader)
     compute_exchange_paths_use_case = ComputeExchangePathsUseCase(
         reader, market_reader)
+    list_selectable_currencies_use_case = ListSelectableCurrenciesUseCase(
+        reader,
+        market_reader,
+    )
     compute_received_amount_use_case = ComputeReceivedAmountUseCase(
         reader, market_reader)
     compute_required_source_amount_use_case = ComputeRequiredSourceAmountUseCase(
@@ -102,6 +109,9 @@ async def run_bot(token: str) -> None:
     dp.workflow_data["list_exchange_rates_use_case"] = list_exchange_rates_use_case
     dp.workflow_data["list_market_rates_use_case"] = list_market_rates_use_case
     dp.workflow_data["compute_exchange_paths_use_case"] = compute_exchange_paths_use_case
+    dp.workflow_data["list_selectable_currencies_use_case"] = (
+        list_selectable_currencies_use_case
+    )
     dp.workflow_data["compute_received_amount_use_case"] = compute_received_amount_use_case
     dp.workflow_data["compute_required_source_amount_use_case"] = (
         compute_required_source_amount_use_case

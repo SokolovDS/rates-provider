@@ -1,7 +1,9 @@
 """Centralized callback payload contracts for Telegram bot scenes."""
 
 from .exchange_paths import (
+    ExchangePathSourceCurrencyCallback,
     ExchangePathsResultCallback,
+    ExchangePathTargetCurrencyCallback,
 )
 from .my_rates import (
     DeleteRateConfirmCallback,
@@ -22,6 +24,8 @@ from .navigation import (
 __all__ = [
     "BackNavigationCallback",
     "DeleteRateConfirmCallback",
+    "ExchangePathSourceCurrencyCallback",
+    "ExchangePathTargetCurrencyCallback",
     "ExchangePathsResultCallback",
     "ListRatesActionCallback",
     "MainMenuCallback",
